@@ -10,10 +10,9 @@ from django.test import SimpleTestCase
 
 
 # patch use for mock testing
-@patch('core.management. \
-        commands. \
-        wait_for_db. \
-        Command.check')  # The last argument in the method
+@patch('core.management.commands.\
+wait_for_db.\
+Command.check')  # The last argument in the method
 class CommandTests(SimpleTestCase):
     """Test commands"""
 
