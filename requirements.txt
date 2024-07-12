@@ -1,5 +1,6 @@
 Django>=3.2.4,<3.3
 djangorestframework>=3.12.4,<3.13
+django-cors-headers==4.3.0
 psycopg2>=2.8.6,<2.9
 ruamel.yaml==0.17.26
 ruamel.yaml.clib==0.2.7
