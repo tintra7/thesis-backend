@@ -16,7 +16,7 @@ services:
     environment:
       - MINIO_ACCESS_KEY=<replace-this>
       - MINIO_SECRET_KEY=<replace-this>
-      - MINIO_BUCKET_NAME=data_file
+      - MINIO_BUCKET_NAME=csv
       - DB_HOST=db
       - DB_NAME=devdb
       - DB_USER=devuser
