@@ -10,7 +10,7 @@ from pandas.api.types import is_numeric_dtype
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
 MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
-
+MINIO_ENDPOINT = settings.MINIO_ENDPOINT
 minio_client = Minio(
     endpoint="minio:9000",
     access_key=MINIO_ACCESS_KEY,
@@ -18,7 +18,7 @@ minio_client = Minio(
     secure=False
 )
 
-def read_data():
+def read_data(file_name):
     try:
         if not minio_client.bucket_exists(BUCKET_NAME):
             print(f"Bucket {BUCKET_NAME} does not exist.")
@@ -27,20 +27,19 @@ def read_data():
         print("Bucket not found")
 
     try:
-        file_name = "output.csv"
         df = pd.read_csv(f"s3://{BUCKET_NAME}/{file_name}",
                         encoding='unicode_escape',
                         storage_options={
                             "key": MINIO_ACCESS_KEY,
                             "secret": MINIO_SECRET_KEY,
-                            "client_kwargs": {"endpoint_url": "http://{MINIO_ENDPOINT}"}
+                            "client_kwargs": {"endpoint_url": f"http://{MINIO_ENDPOINT}"}
                         })
         for i in df.columns:
             if "Unnamed" in i:
                 df = df.drop(i, axis=1)
         return df
     except(Exception):
-        print("File not found")
+        print(Exception)
         return pd.DataFrame()
 
 def rfm_analysis(df, timestamp, monetary, customer):

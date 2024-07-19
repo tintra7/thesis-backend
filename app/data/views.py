@@ -3,9 +3,10 @@ from rest_framework import status
 from rest_framework import status
 from io import BytesIO
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.parsers import JSONParser
 from django.conf import settings
+from rest_framework import generics, authentication, permissions
 
 from data.utils import (
     read_data,
@@ -34,10 +35,13 @@ minio_client = Minio(
 
 # Create your views here.
 @api_view(['POST'])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
 def upload(request):
     if request.method == "POST":
         file = request.FILES.get('file')  # Access the uploaded file
-        file_name = "output.csv"
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
         if file is not None:
             value_as_bytes = file.read()
             value_as_a_stream = BytesIO(value_as_bytes)
@@ -48,10 +52,15 @@ def upload(request):
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
+
 @api_view(['GET'])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
 def get_columns(request):
     if request.method == "GET":
-        df = read_data()
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = read_data(file_name)
         if not df.empty:
             metric_columns = []
             nominal_columns = []
@@ -67,24 +76,31 @@ def get_columns(request):
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-
 @api_view(['POST'])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
 def descriptive(request):
     if request.method == "POST":
         data = JSONParser().parse(request)
         metric = data['metric']
         ordinal = data['ordinal']
         method = data['method']
-        df = read_data()
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = read_data(file_name)
         response_data = descriptive_analysis(df, metric, ordinal, method)
         return Response({"data": response_data}, status=status.HTTP_200_OK)
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(["POST"])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
 def rfm(request):
     if request.method == "POST":
-        df = read_data()
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = read_data(file_name)
         if not df.empty:
             timestamp = request.POST.get("timestamp")
             monetary = request.POST.get("monetary")
