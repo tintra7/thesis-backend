@@ -14,9 +14,9 @@ services:
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     environment:
-      - MINIO_ACCESS_KEY=<replace-this>
-      - MINIO_SECRET_KEY=<replace-this>
-      - MINIO_BUCKET_NAME=data_file
+      - MINIO_ACCESS_KEY=6bv5JNcebDunuN3W
+      - MINIO_SECRET_KEY=Th8NPz6d6s9gM8HW6zDlMbTb98NnFH57
+      - MINIO_BUCKET_NAME=data
       - DB_HOST=db
       - DB_NAME=devdb
       - DB_USER=devuser
