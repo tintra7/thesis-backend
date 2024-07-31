@@ -103,3 +103,28 @@ def descriptive_analysis(df, metric, ordinal, method):
             data = df.loc[df['index'] == i]
             response_data += [{str(data["index"].values[0]) : float(data[metric])}]
     return response_data
+
+def mapping(user_columns: list[str], user_id: str):
+    """
+    Return mapping user columns and system column and store as JSON file.
+
+            Parameters:
+                    user_columns (list(str)): User columns
+                    user_id (str): User ID
+            Returns:
+                    map (dict)
+    """
+
+    return {
+            'invoice_no': 'Transaction ID',
+            'customer_id': 'Customer ID',
+            'gender': "Customer Gender",
+            'age': "Customer Age",
+            'category': 'Category',
+            'quantity': 'Quantity',
+            'price': 'Unit Price',
+            'payment_method': 'Payment Method',
+            'invoice_date': 'Date',
+            'shopping_mall': 'Store Location'
+        }
+
