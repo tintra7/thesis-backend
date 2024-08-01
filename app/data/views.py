@@ -1,6 +1,5 @@
 from django.shortcuts import render
 from rest_framework import status
-from rest_framework import status
 from io import BytesIO
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -12,6 +11,7 @@ from data.utils import (
     read_data,
     rfm_analysis,
     descriptive_analysis,
+    mapping
 )
 
 from minio import Minio
@@ -43,10 +43,14 @@ def upload(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         if file is not None:
+            print(type(file))
             value_as_bytes = file.read()
             value_as_a_stream = BytesIO(value_as_bytes)
             minio_client.put_object(BUCKET_NAME, file_name, data=value_as_a_stream, length=len(value_as_bytes))
-            return Response("File uploaded successfully", status=status.HTTP_200_OK)
+            map = mapping([], [])
+            response = {"message": "File uploaded successfully",
+                        "mapping": map}
+            return Response(response, status=status.HTTP_200_OK)
         else:
             return Response("No file uploaded", status=status.HTTP_400_BAD_REQUEST)
     else:
@@ -115,3 +119,5 @@ def rfm(request):
             except(Exception):
                 print(Exception)
                 return Response("Not valid timestamp column", status=status.HTTP_406_NOT_ACCEPTABLE)
+        else:
+            return Response("File not found", status=status.HTTP_404_NOT_FOUND)

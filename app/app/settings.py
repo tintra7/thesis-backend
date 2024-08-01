@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'user',
     'data',
+    'chart',
+    'filter',
 
 ]
 
@@ -155,4 +157,3 @@ MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
 MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME")
 MINIO_ENDPOINT = "minio:9000"
-print(MINIO_ACCESS_KEY)
