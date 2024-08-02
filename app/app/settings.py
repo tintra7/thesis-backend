@@ -141,7 +141,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'core.User'
 
 REST_FRAMEWORK = {
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema'
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 5
 }
 CORS_ALLOW_HEADERS = default_headers + (
     'Access-Control-Allow-Origin',
@@ -157,3 +159,5 @@ MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
 MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME")
 MINIO_ENDPOINT = "minio:9000"
+
+MAX_PAGE_SIZE = 200
