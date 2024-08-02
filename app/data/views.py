@@ -6,6 +6,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.parsers import JSONParser
 from django.conf import settings
 from rest_framework import generics, authentication, permissions
+from rest_framework.pagination import PageNumberPagination
 
 from data.utils import (
     read_data,
@@ -24,7 +25,7 @@ MINIO_ENDPOINT = settings.MINIO_ENDPOINT
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
 MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
-
+MAX_PAGE_SIZE = settings.MAX_PAGE_SIZE
 
 minio_client = Minio(
     endpoint=MINIO_ENDPOINT,
@@ -32,6 +33,10 @@ minio_client = Minio(
     secret_key=MINIO_SECRET_KEY,
     secure=False
 )
+
+class CustomPagination(PageNumberPagination):
+    page_size_query_param = 'page_size'
+    max_page_size = MAX_PAGE_SIZE
 
 # Create your views here.
 @api_view(['POST'])
@@ -119,5 +124,37 @@ def rfm(request):
             except(Exception):
                 print(Exception)
                 return Response("Not valid timestamp column", status=status.HTTP_406_NOT_ACCEPTABLE)
+        else:
+            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
+def get_data_length(request):
+    if request.method == "GET":
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = read_data(file_name)
+        if not df.empty:
+            response = {"length": len(df)}
+            return Response(response, status=status.HTTP_200_OK)
+        else:
+            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
+def get_data(request):
+    if request.method == "GET":
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = read_data(file_name)
+
+        if not df.empty:
+            paginator = CustomPagination()
+            result_page = paginator.paginate_queryset(df.to_dict('records'), request)
+            response_data = result_page
+            return paginator.get_paginated_response(response_data)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
