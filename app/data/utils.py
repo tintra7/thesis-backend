@@ -1,5 +1,6 @@
 from io import BytesIO
 from minio import Minio
+from minio.error import S3Error
 
 from django.conf import settings
 
@@ -7,10 +8,13 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
+import json
+
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
 MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
 MINIO_ENDPOINT = settings.MINIO_ENDPOINT
+
 minio_client = Minio(
     endpoint="minio:9000",
     access_key=MINIO_ACCESS_KEY,
@@ -18,29 +22,100 @@ minio_client = Minio(
     secure=False
 )
 
-def read_data(file_name):
-    try:
-        if not minio_client.bucket_exists(BUCKET_NAME):
-            print(f"Bucket {BUCKET_NAME} does not exist.")
-            return pd.DataFrame()
-    except:
-        print("Bucket not found")
+class MinioClient(Minio):
 
-    try:
-        df = pd.read_csv(f"s3://{BUCKET_NAME}/{file_name}",
-                        encoding='unicode_escape',
-                        storage_options={
-                            "key": MINIO_ACCESS_KEY,
-                            "secret": MINIO_SECRET_KEY,
-                            "client_kwargs": {"endpoint_url": f"http://{MINIO_ENDPOINT}"}
-                        })
-        for i in df.columns:
-            if "Unnamed" in i:
-                df = df.drop(i, axis=1)
-        return df
-    except(Exception):
-        print(Exception)
-        return pd.DataFrame()
+    def to_csv(self, df, file_name):
+        try:
+            if not self.bucket_exists(BUCKET_NAME):
+                print(f"Bucket {BUCKET_NAME} does not exist.")
+                return False
+            try:
+                csv_bytes = df.to_csv().encode('utf-8')
+                csv_buffer = BytesIO(csv_bytes)
+                self.put_object(BUCKET_NAME,
+                                f"{file_name}",
+                                data=csv_buffer,
+                                length=len(csv_bytes),
+                                content_type='application/csv')
+            except:
+                print("File not except")
+                return False
+        except:
+            print("Bucket not found")
+            return False
+
+
+    def read_csv(self, file_name):
+        try:
+            if not self.bucket_exists(BUCKET_NAME):
+                print(f"Bucket {BUCKET_NAME} does not exist.")
+                return pd.DataFrame()
+            try:
+                df = pd.read_csv(f"s3://{BUCKET_NAME}/{file_name}",
+                                encoding='unicode_escape',
+                                storage_options={
+                                    "key": MINIO_ACCESS_KEY,
+                                    "secret": MINIO_SECRET_KEY,
+                                    "client_kwargs": {"endpoint_url": f"http://{MINIO_ENDPOINT}"}
+                                })
+                for i in df.columns:
+                    if "Unnamed" in i:
+                        df = df.drop(i, axis=1)
+                return df
+            except(Exception):
+                print(Exception)
+                return pd.DataFrame()
+        except:
+            print("Bucket not found")
+            return pd.DataFrame()
+
+    def to_json(self, data, file_name):
+        json_data = json.dumps(data, indent=4)
+        json_bytes = BytesIO(json_data.encode('utf-8'))
+        try:
+            # Upload the JSON data directly to MinIO
+            self.put_object(
+                BUCKET_NAME,
+                file_name,
+                data=json_bytes,
+                length=len(json_data),
+                content_type="application/json"
+            )
+            print(f"JSON data is successfully uploaded to bucket '{BUCKET_NAME}' as '{file_name}'.")
+        except S3Error as e:
+            print(f"Error occurred: {e}")
+
+    def read_json(self, file_name):
+        try:
+            if not self.bucket_exists(BUCKET_NAME):
+                print(f"Bucket {BUCKET_NAME} does not exist.")
+                return {}
+        except:
+            print("Bucket not found")
+
+        try:
+            response = self.get_object(BUCKET_NAME, file_name)
+            dic = json.loads(response.data)
+            response.close()
+            response.release_conn()
+            return dic
+        except(Exception):
+            print(Exception)
+            return pd.DataFrame()
+
+def data_preprocessing(df: pd.DataFrame):
+    if "Total Price" not in df.columns:
+        if "Unit Price" in df.columns and "Quantity" in df.columns:
+            try:
+                df['Total Price'] = df['Quantity'] * df['Unit Price']
+            except(Exception):
+                print(Exception)
+    if "Date" in df.columns:
+        try:
+            df['Date'] = pd.to_datetime(df['Date'])
+        except(Exception):
+            pass
+    return df
 
 def rfm_analysis(df, timestamp, monetary, customer):
     df[timestamp] = pd.to_datetime(df[timestamp])
@@ -81,10 +156,10 @@ def rfm_analysis(df, timestamp, monetary, customer):
                                             rfm_df['RFM_Score'] > 4,
                                             "High value Customer",
                                             (np.where(
-        rfm_df['RFM_Score'] > 3,
-                                "Medium Value Customer",
-                                np.where(rfm_df['RFM_Score'] > 1.6,
-                                'Low Value Customers', 'Lost Customers'))))))
+    rfm_df['RFM_Score'] > 3,
+                            "Medium Value Customer",
+                            np.where(rfm_df['RFM_Score'] > 1.6,
+                            'Low Value Customers', 'Lost Customers'))))))
 
     return rfm_df
 
