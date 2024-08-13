@@ -7,12 +7,14 @@ from rest_framework.parsers import JSONParser
 from django.conf import settings
 from rest_framework import generics, authentication, permissions
 from rest_framework.pagination import PageNumberPagination
+from io import StringIO
 
 from data.utils import (
-    read_data,
+    MinioClient,
     rfm_analysis,
     descriptive_analysis,
-    mapping
+    mapping,
+    data_preprocessing
 )
 
 from minio import Minio
@@ -27,7 +29,8 @@ MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
 MAX_PAGE_SIZE = settings.MAX_PAGE_SIZE
 
-minio_client = Minio(
+
+minio_client = MinioClient(
     endpoint=MINIO_ENDPOINT,
     access_key=MINIO_ACCESS_KEY,
     secret_key=MINIO_SECRET_KEY,
@@ -45,14 +48,18 @@ class CustomPagination(PageNumberPagination):
 def upload(request):
     if request.method == "POST":
         file = request.FILES.get('file')  # Access the uploaded file
+        file_type = request.POST.get("type")
+        delimiter = request.POST.get("delimiter")
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         if file is not None:
-            print(type(file))
             value_as_bytes = file.read()
-            value_as_a_stream = BytesIO(value_as_bytes)
-            minio_client.put_object(BUCKET_NAME, file_name, data=value_as_a_stream, length=len(value_as_bytes))
-            map = mapping([], [])
+            df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
+            map = mapping(df.columns, [])
+            df = data_preprocessing(df.rename(map, axis=1))
+            print(df.info())
+            minio_client.to_csv(df, file_name)
+            minio_client.to_json(map, f"{user_id}/mapping.json")
             response = {"message": "File uploaded successfully",
                         "mapping": map}
             return Response(response, status=status.HTTP_200_OK)
@@ -69,7 +76,7 @@ def get_columns(request):
     if request.method == "GET":
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-        df = read_data(file_name)
+        df = minio_client.read_csv(file_name)
         if not df.empty:
             metric_columns = []
             nominal_columns = []
@@ -96,7 +103,7 @@ def descriptive(request):
         method = data['method']
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-        df = read_data(file_name)
+        df = minio_client.read_csv(file_name)
         response_data = descriptive_analysis(df, metric, ordinal, method)
         return Response({"data": response_data}, status=status.HTTP_200_OK)
     else:
@@ -109,12 +116,16 @@ def rfm(request):
     if request.method == "POST":
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-        df = read_data(file_name)
-        if not df.empty:
-            timestamp = request.POST.get("timestamp")
-            monetary = request.POST.get("monetary")
-            customer = request.POST.get("customer")
+        mapper_name = f"{user_id}/mapping.json"
+        df = minio_client.read_csv(file_name)
+        mapper = minio_client.read_json(file_name=mapper_name)
+        if not df.empty and mapper:
+            df = df.rename(mapper, axis=1)
+            timestamp = "Date"
+            monetary = "Total Price"
+            customer = "Custormer ID"
             try:
+
                 rfm_df = rfm_analysis(df, timestamp, monetary, customer)
                 response_data = []
                 for i in range(len(rfm_df)):
@@ -135,7 +146,7 @@ def get_data_length(request):
     if request.method == "GET":
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-        df = read_data(file_name)
+        df = minio_client.read_csv(file_name)
         if not df.empty:
             response = {"length": len(df)}
             return Response(response, status=status.HTTP_200_OK)
@@ -149,12 +160,25 @@ def get_data(request):
     if request.method == "GET":
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-        df = read_data(file_name)
+        df = minio_client.read_csv(file_name)
 
         if not df.empty:
             paginator = CustomPagination()
             result_page = paginator.paginate_queryset(df.to_dict('records'), request)
             response_data = result_page
             return paginator.get_paginated_response(response_data)
+        else:
+            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
+def get_mapping(request):
+    if request.method == "GET":
+        user_id = request.user.id
+        file_name = f"{user_id}/mapping.json"
+        dic = minio_client.read_json(file_name)
+        if dic:
+            return Response({"mapping": dic}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
