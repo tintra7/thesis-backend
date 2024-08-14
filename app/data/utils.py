@@ -15,13 +15,6 @@ MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
 MINIO_ENDPOINT = settings.MINIO_ENDPOINT
 
-minio_client = Minio(
-    endpoint="minio:9000",
-    access_key=MINIO_ACCESS_KEY,
-    secret_key=MINIO_SECRET_KEY,
-    secure=False
-)
-
 class MinioClient(Minio):
 
     def to_csv(self, df, file_name):
@@ -102,6 +95,24 @@ class MinioClient(Minio):
         except(Exception):
             print(Exception)
             return pd.DataFrame()
+        
+
+    def _remove_object(self, user_id):
+        object_list = self.list_objects(bucket_name=BUCKET_NAME, prefix=f"{user_id}", recursive=True)
+        if len(list(object_list)) > 0:
+            object_name_list = [obj.object_name for obj in list(object_list)]
+            for object_name in object_name_list:
+                self.remove_object(object_name)
+            return True
+        return False
+    
+def try_parse_datetime(data, formats):
+    for fmt in formats:
+        try:
+            return pd.to_datetime(data, format=fmt)
+        except ValueError:
+            continue
+    return None
 
 def data_preprocessing(df: pd.DataFrame):
     if "Total Price" not in df.columns:
@@ -111,10 +122,12 @@ def data_preprocessing(df: pd.DataFrame):
             except(Exception):
                 print(Exception)
     if "Date" in df.columns:
-        try:
-            df['Date'] = pd.to_datetime(df['Date'])
-        except(Exception):
-            pass
+        # Try parse multiple datetime until success, if
+        formats = []
+        datetime = try_parse_datetime(df['Date'], formats=formats)
+        if not datetime:
+            df['Date'] = datetime
+        
     return df
 
 def rfm_analysis(df, timestamp, monetary, customer):

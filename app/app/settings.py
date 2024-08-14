@@ -12,7 +12,9 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 import os
 from pathlib import Path
 from corsheaders.defaults import default_headers
+from dotenv import load_dotenv
 
+load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -158,6 +160,6 @@ CORS_ALLOWED_ORIGINS = [
 MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
 MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME")
-MINIO_ENDPOINT = "minio:9000"
+MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT")
 
 MAX_PAGE_SIZE = 200

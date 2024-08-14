@@ -17,8 +17,6 @@ from data.utils import (
     data_preprocessing
 )
 
-from minio import Minio
-
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -52,12 +50,12 @@ def upload(request):
         delimiter = request.POST.get("delimiter")
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
+        print(file)
         if file is not None:
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
             map = mapping(df.columns, [])
             df = data_preprocessing(df.rename(map, axis=1))
-            print(df.info())
             minio_client.to_csv(df, file_name)
             minio_client.to_json(map, f"{user_id}/mapping.json")
             response = {"message": "File uploaded successfully",
@@ -137,6 +135,8 @@ def rfm(request):
                 return Response("Not valid timestamp column", status=status.HTTP_406_NOT_ACCEPTABLE)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    else:
+        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 @api_view(['GET'])
@@ -152,6 +152,8 @@ def get_data_length(request):
             return Response(response, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    else:
+        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -169,6 +171,8 @@ def get_data(request):
             return paginator.get_paginated_response(response_data)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    else:
+        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -179,6 +183,23 @@ def get_mapping(request):
         file_name = f"{user_id}/mapping.json"
         dic = minio_client.read_json(file_name)
         if dic:
-            return Response({"mapping": dic}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"mapping": dic}, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    else:
+        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        
+@api_view(['DELETE'])
+@authentication_classes([authentication.TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
+def delete_all(request):
+    if request.method == "DELETE":
+        user_id = request.user.id
+        remove_status = minio_client._remove_object(user_id=user_id)
+        if remove_status:
+            return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
+        else:
+            return Response("Nothing to delete", status=status.HTTP_200_OK)
+    else:
+        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        
