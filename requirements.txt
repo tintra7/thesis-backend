@@ -13,3 +13,4 @@ fsspec==2024.6.1
 openai==1.37.1
 cmdstanpy==1.2.4
 stanio==0.5.1
+prophet==1.1.5
