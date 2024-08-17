@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from rest_framework import status
 from io import BytesIO
 from rest_framework.response import Response
@@ -8,6 +7,7 @@ from django.conf import settings
 from rest_framework import generics, authentication, permissions
 from rest_framework.pagination import PageNumberPagination
 from io import StringIO
+from prophet import Prophet
 
 from data.utils import (
     MinioClient,
@@ -15,6 +15,12 @@ from data.utils import (
     descriptive_analysis,
     mapping,
     data_preprocessing
+)
+
+from data.forecast.model import (
+    series_to_supervised,
+    train_test_split,
+    train_with_prophet
 )
 
 import numpy as np
@@ -50,7 +56,7 @@ def upload(request):
         delimiter = request.POST.get("delimiter")
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-        print(file)
+
         if file is not None:
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
@@ -83,8 +89,8 @@ def get_columns(request):
                     metric_columns += [i]
                 else:
                     nominal_columns += [i]
-            respone = {"metric": metric_columns, "nominal": nominal_columns}
-            return Response(respone, status=status.HTTP_200_OK)
+            response = {"metric": metric_columns, "nominal": nominal_columns}
+            return Response(response, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
     else:
@@ -155,10 +161,10 @@ def get_data_length(request):
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-@api_view(['GET'])
+@api_view(['GET', 'DELETE'])
 @authentication_classes([authentication.TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
-def get_data(request):
+def data(request):
     if request.method == "GET":
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
@@ -171,6 +177,13 @@ def get_data(request):
             return paginator.get_paginated_response(response_data)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    if request.method == "DELETE":
+        user_id = request.user.id
+        remove_status = minio_client._remove_object(user_id=user_id)
+        if remove_status:
+            return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
+        else:
+            return Response("Nothing to delete", status=status.HTTP_200_OK)
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
@@ -186,20 +199,37 @@ def get_mapping(request):
             return Response({"mapping": dic}, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
         
-@api_view(['DELETE'])
+@api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
-def delete_all(request):
-    if request.method == "DELETE":
+def forecast(request):
+    if request.method == "GET":
         user_id = request.user.id
-        remove_status = minio_client._remove_object(user_id=user_id)
-        if remove_status:
-            return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
+        file_name = f"{user_id}/file.csv"
+        df = minio_client.read_csv(file_name)
+        time_range = request.GET.get('time')
+        target = request.GET.get("metric")
+        if not df.empty:
+            if "Date" not in df.columns:
+                return Response("Date column not found", status=status.HTTP_404_NOT_FOUND)
+            
+            # df = df.groupby("Date")[target].sum()
+            # X, y = series_to_supervised(df[[target]])
+            test_size = 0.8
+            # X_train, x_test, y_train, y_test = train_test_split(X, y, test_size)
+            prophet = {}
+            prophet['model'], eval  = train_with_prophet(df, test_size, target)
+            prophet['mse'], prophet['mae'] = eval.mse(), eval.mae()
+            future = prophet['model'].make_future_dataframe(periods=time_range)
+            future_sum = sum(prophet['model'].predict(future)['y_hat'])
+            
+            response = {'value': future_sum, 'mse': prophet['mse'], 'mae': prophet['mae'], 'eval_df': eval.get_eval_df().to_dict()}
+            return Response(response, status=status.HTTP_200_OK)
         else:
-            return Response("Nothing to delete", status=status.HTTP_200_OK)
+            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
-        
