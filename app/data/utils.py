@@ -123,9 +123,9 @@ def data_preprocessing(df: pd.DataFrame):
                 print(Exception)
     if "Date" in df.columns:
         # Try parse multiple datetime until success, if
-        formats = []
+        formats = ["%d/%m/%Y"]
         datetime = try_parse_datetime(df['Date'], formats=formats)
-        if not datetime:
+        if not datetime.empty:
             df['Date'] = datetime
         
     return df
