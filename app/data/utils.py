@@ -7,7 +7,7 @@ from django.conf import settings
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
-
+from data.forecast.model import ProphetModel
 import json
 
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
@@ -108,8 +108,12 @@ class MinioClient(Minio):
     
 def try_parse_datetime(data, formats):
     for fmt in formats:
+
         try:
-            return pd.to_datetime(data, format=fmt)
+            if fmt == "":
+                return pd.to_datetime(data)
+            else:
+                return pd.to_datetime(data, format=fmt)
         except ValueError:
             continue
     return None
@@ -122,8 +126,8 @@ def data_preprocessing(df: pd.DataFrame):
             except(Exception):
                 print(Exception)
     if "Date" in df.columns:
-        # Try parse multiple datetime until success, if
-        formats = ["%d/%m/%Y"]
+        # Try parse multiple datetime until success, "" is stand for use default format of pandas
+        formats = ["", "%d/%m/%Y"]
         datetime = try_parse_datetime(df['Date'], formats=formats)
         if not datetime.empty:
             df['Date'] = datetime
@@ -216,3 +220,8 @@ def mapping(user_columns: list[str], user_id: str):
             'shopping_mall': 'Store Location'
         }
 
+def train_with_prophet(data, test_size, target):
+    # Prepare the data for Prophet
+    model = ProphetModel()
+    model.train(test_size, data, target)
+    return model
