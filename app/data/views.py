@@ -14,12 +14,7 @@ from data.utils import (
     rfm_analysis,
     descriptive_analysis,
     mapping,
-    data_preprocessing
-)
-
-from data.forecast.model import (
-    series_to_supervised,
-    train_test_split,
+    data_preprocessing,
     train_with_prophet
 )
 
@@ -211,23 +206,21 @@ def forecast(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
-        time_range = request.GET.get('time')
+        time_range = int(request.GET.get('time'))
         target = request.GET.get("metric")
         if not df.empty:
             if "Date" not in df.columns:
                 return Response("Date column not found", status=status.HTTP_404_NOT_FOUND)
-            
-            # df = df.groupby("Date")[target].sum()
-            # X, y = series_to_supervised(df[[target]])
             test_size = 0.8
-            # X_train, x_test, y_train, y_test = train_test_split(X, y, test_size)
-            prophet = {}
-            prophet['model'], eval  = train_with_prophet(df, test_size, target)
-            prophet['mse'], prophet['mae'] = eval.mse(), eval.mae()
-            future = prophet['model'].make_future_dataframe(periods=time_range)
-            future_sum = sum(prophet['model'].predict(future)['y_hat'])
-            
-            response = {'value': future_sum, 'mse': prophet['mse'], 'mae': prophet['mae'], 'eval_df': eval.get_eval_df().to_dict()}
+            model = train_with_prophet(df, test_size, target)
+            future_sum = model._make_predict(time_range)
+            response = {
+                "mse": model.eval.mse(), 
+                "mae": model.eval.mae(), 
+                "value": future_sum, 
+                "eval": model.eval.get_eval_df().to_dict('records')
+                }
+
             return Response(response, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
