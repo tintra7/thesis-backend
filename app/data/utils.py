@@ -75,8 +75,10 @@ class MinioClient(Minio):
                 content_type="application/json"
             )
             print(f"JSON data is successfully uploaded to bucket '{BUCKET_NAME}' as '{file_name}'.")
+            return True
         except S3Error as e:
             print(f"Error occurred: {e}")
+            return False
 
     def read_json(self, file_name):
         try:

@@ -57,8 +57,12 @@ def upload(request):
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
             map = mapping(df.columns, [])
             df = data_preprocessing(df.rename(map, axis=1))
-            minio_client.to_csv(df, file_name)
-            minio_client.to_json(map, f"{user_id}/mapping.json")
+            is_uploaded = minio_client.to_csv(df, file_name)
+            if not is_uploaded:
+                return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
+            is_uploaded = minio_client.to_json(map, f"{user_id}/mapping.json")
+            if not is_uploaded:
+                return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
             response = {"message": "File uploaded successfully",
                         "mapping": map}
             return Response(response, status=status.HTTP_200_OK)
