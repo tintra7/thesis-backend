@@ -99,10 +99,10 @@ class MinioClient(Minio):
 
     def _remove_object(self, user_id):
         object_list = self.list_objects(bucket_name=BUCKET_NAME, prefix=f"{user_id}", recursive=True)
-        if len(list(object_list)) > 0:
-            object_name_list = [obj.object_name for obj in list(object_list)]
-            for object_name in object_name_list:
-                self.remove_object(object_name)
+        object_list = list(object_list)
+        if len(object_list) > 0:
+            for obj in object_list:
+                self.remove_object(BUCKET_NAME, obj.object_name)
             return True
         return False
     
