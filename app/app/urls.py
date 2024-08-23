@@ -31,4 +31,5 @@ urlpatterns = [
     ),
     path("api/user/", include('user.urls')),
     path("api/data/", include('data.urls')),
+    path("api/chart/", include('chart.urls')),
 ]
