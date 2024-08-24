@@ -17,7 +17,7 @@ MINIO_ENDPOINT = settings.MINIO_ENDPOINT
 
 class MinioClient(Minio):
 
-    def to_csv(self, df, file_name):
+    def to_csv(self, df, file_name) -> bool:
         try:
             if not self.bucket_exists(BUCKET_NAME):
                 print(f"Bucket {BUCKET_NAME} does not exist.")
@@ -30,6 +30,7 @@ class MinioClient(Minio):
                                 data=csv_buffer,
                                 length=len(csv_bytes),
                                 content_type='application/csv')
+                return True
             except:
                 print("File not except")
                 return False
@@ -38,7 +39,7 @@ class MinioClient(Minio):
             return False
 
 
-    def read_csv(self, file_name):
+    def read_csv(self, file_name) -> pd.DataFrame:
         try:
             if not self.bucket_exists(BUCKET_NAME):
                 print(f"Bucket {BUCKET_NAME} does not exist.")
@@ -62,7 +63,7 @@ class MinioClient(Minio):
             print("Bucket not found")
             return pd.DataFrame()
 
-    def to_json(self, data, file_name):
+    def to_json(self, data, file_name) -> bool:
         json_data = json.dumps(data, indent=4)
         json_bytes = BytesIO(json_data.encode('utf-8'))
         try:
@@ -80,13 +81,14 @@ class MinioClient(Minio):
             print(f"Error occurred: {e}")
             return False
 
-    def read_json(self, file_name):
+    def read_json(self, file_name) -> dict:
         try:
             if not self.bucket_exists(BUCKET_NAME):
                 print(f"Bucket {BUCKET_NAME} does not exist.")
                 return {}
         except:
             print("Bucket not found")
+            return {}
 
         try:
             response = self.get_object(BUCKET_NAME, file_name)
@@ -96,10 +98,10 @@ class MinioClient(Minio):
             return dic
         except(Exception):
             print(Exception)
-            return pd.DataFrame()
+            return {}
         
 
-    def _remove_object(self, user_id):
+    def _remove_object(self, user_id) -> bool:
         object_list = self.list_objects(bucket_name=BUCKET_NAME, prefix=f"{user_id}", recursive=True)
         object_list = list(object_list)
         if len(object_list) > 0:
@@ -110,7 +112,6 @@ class MinioClient(Minio):
     
 def try_parse_datetime(data, formats):
     for fmt in formats:
-
         try:
             if fmt == "":
                 return pd.to_datetime(data)
@@ -129,11 +130,11 @@ def data_preprocessing(df: pd.DataFrame):
                 print(Exception)
     if "Date" in df.columns:
         # Try parse multiple datetime until success, "" is stand for use default format of pandas
-        formats = ["", "%d/%m/%Y"]
+        formats = ["%d/%m/%Y", ""]
         datetime = try_parse_datetime(df['Date'], formats=formats)
         if not datetime.empty:
             df['Date'] = datetime
-        
+    df = df.dropna(axis=0, inplace=True)
     return df
 
 def rfm_analysis(df, timestamp, monetary, customer):
