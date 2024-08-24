@@ -50,10 +50,11 @@ def data(request):
         df = minio_client.read_csv(file_name)
 
         if not df.empty:
-            paginator = CustomPagination()
-            result_page = paginator.paginate_queryset(df.to_dict('records'), request)
-            response_data = result_page
-            return paginator.get_paginated_response(response_data)
+            # paginator = CustomPagination()
+            # result_page = paginator.paginate_queryset(df.to_dict('records'), request)
+            # response_data = result_page
+            # return paginator.get_paginated_response(response_data)
+            return Response({"data": df.to_dict('records')}, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
     if request.method == "DELETE":
@@ -213,7 +214,7 @@ def forecast(request):
                 "mse": model.eval.mse(), 
                 "mae": model.eval.mae(), 
                 "value": future_sum, 
-                "eval": model.eval.get_eval_df().to_dict('records')
+                "eval": model.eval.get_eval_df()
                 }
             return Response(response, status=status.HTTP_200_OK)
         else:
