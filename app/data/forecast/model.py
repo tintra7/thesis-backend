@@ -75,8 +75,10 @@ class ProphetModel(ForecastModel):
 
     def _make_predict(self, time_range: int) -> float:
         future = self.model.make_future_dataframe(periods=time_range)
-        future_sum = self.model.predict(future[-time_range:])['yhat']
-        return future_sum.sum()
+        future = self.model.predict(future.tail(time_range))
+        print(len(future[['ds', 'yhat']].to_dict('records')))
+        
+        return future[['ds', 'yhat']].to_dict('records')
 
 class Evaluation:
     

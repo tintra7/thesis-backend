@@ -40,11 +40,29 @@ class CustomPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = MAX_PAGE_SIZE
 
-# Create your views here.
-@api_view(['POST'])
+@api_view(['GET', 'DELETE', 'POST'])
 @authentication_classes([authentication.TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
-def upload(request):
+def data(request):
+    if request.method == "GET":
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = minio_client.read_csv(file_name)
+
+        if not df.empty:
+            paginator = CustomPagination()
+            result_page = paginator.paginate_queryset(df.to_dict('records'), request)
+            response_data = result_page
+            return paginator.get_paginated_response(response_data)
+        else:
+            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    if request.method == "DELETE":
+        user_id = request.user.id
+        remove_status = minio_client._remove_object(user_id=user_id)
+        if remove_status:
+            return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
+        else:
+            return Response("Nothing to delete", status=status.HTTP_200_OK)
     if request.method == "POST":
         file = request.FILES.get('file')  # Access the uploaded file
         file_type = request.POST.get("type")
@@ -70,7 +88,6 @@ def upload(request):
             return Response("No file uploaded", status=status.HTTP_400_BAD_REQUEST)
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
 
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -128,7 +145,6 @@ def rfm(request):
             monetary = "Total Price"
             customer = "Custormer ID"
             try:
-
                 rfm_df = rfm_analysis(df, timestamp, monetary, customer)
                 response_data = []
                 for i in range(len(rfm_df)):
@@ -160,31 +176,6 @@ def get_data_length(request):
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-@api_view(['GET', 'DELETE'])
-@authentication_classes([authentication.TokenAuthentication])
-@permission_classes([permissions.IsAuthenticated])
-def data(request):
-    if request.method == "GET":
-        user_id = request.user.id
-        file_name = f"{user_id}/file.csv"
-        df = minio_client.read_csv(file_name)
-
-        if not df.empty:
-            paginator = CustomPagination()
-            result_page = paginator.paginate_queryset(df.to_dict('records'), request)
-            response_data = result_page
-            return paginator.get_paginated_response(response_data)
-        else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
-    if request.method == "DELETE":
-        user_id = request.user.id
-        remove_status = minio_client._remove_object(user_id=user_id)
-        if remove_status:
-            return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
-        else:
-            return Response("Nothing to delete", status=status.HTTP_200_OK)
-    else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -224,7 +215,6 @@ def forecast(request):
                 "value": future_sum, 
                 "eval": model.eval.get_eval_df().to_dict('records')
                 }
-
             return Response(response, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)
