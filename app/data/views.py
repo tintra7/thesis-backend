@@ -14,12 +14,7 @@ from data.utils import (
     rfm_analysis,
     descriptive_analysis,
     mapping,
-    data_preprocessing
-)
-
-from data.forecast.model import (
-    series_to_supervised,
-    train_test_split,
+    data_preprocessing,
     train_with_prophet
 )
 
@@ -45,11 +40,29 @@ class CustomPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = MAX_PAGE_SIZE
 
-# Create your views here.
-@api_view(['POST'])
+@api_view(['GET', 'DELETE', 'POST'])
 @authentication_classes([authentication.TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
-def upload(request):
+def data(request):
+    if request.method == "GET":
+        user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = minio_client.read_csv(file_name)
+
+        if not df.empty:
+            paginator = CustomPagination()
+            result_page = paginator.paginate_queryset(df.to_dict('records'), request)
+            response_data = result_page
+            return paginator.get_paginated_response(response_data)
+        else:
+            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+    if request.method == "DELETE":
+        user_id = request.user.id
+        remove_status = minio_client._remove_object(user_id=user_id)
+        if remove_status:
+            return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
+        else:
+            return Response("Nothing to delete", status=status.HTTP_200_OK)
     if request.method == "POST":
         file = request.FILES.get('file')  # Access the uploaded file
         file_type = request.POST.get("type")
@@ -62,8 +75,12 @@ def upload(request):
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
             map = mapping(df.columns, [])
             df = data_preprocessing(df.rename(map, axis=1))
-            minio_client.to_csv(df, file_name)
-            minio_client.to_json(map, f"{user_id}/mapping.json")
+            is_uploaded = minio_client.to_csv(df, file_name)
+            if not is_uploaded:
+                return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
+            is_uploaded = minio_client.to_json(map, f"{user_id}/mapping.json")
+            if not is_uploaded:
+                return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
             response = {"message": "File uploaded successfully",
                         "mapping": map}
             return Response(response, status=status.HTTP_200_OK)
@@ -71,7 +88,6 @@ def upload(request):
             return Response("No file uploaded", status=status.HTTP_400_BAD_REQUEST)
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
 
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -129,7 +145,6 @@ def rfm(request):
             monetary = "Total Price"
             customer = "Custormer ID"
             try:
-
                 rfm_df = rfm_analysis(df, timestamp, monetary, customer)
                 response_data = []
                 for i in range(len(rfm_df)):
@@ -161,31 +176,6 @@ def get_data_length(request):
     else:
         return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-@api_view(['GET', 'DELETE'])
-@authentication_classes([authentication.TokenAuthentication])
-@permission_classes([permissions.IsAuthenticated])
-def data(request):
-    if request.method == "GET":
-        user_id = request.user.id
-        file_name = f"{user_id}/file.csv"
-        df = minio_client.read_csv(file_name)
-
-        if not df.empty:
-            paginator = CustomPagination()
-            result_page = paginator.paginate_queryset(df.to_dict('records'), request)
-            response_data = result_page
-            return paginator.get_paginated_response(response_data)
-        else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
-    if request.method == "DELETE":
-        user_id = request.user.id
-        remove_status = minio_client._remove_object(user_id=user_id)
-        if remove_status:
-            return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
-        else:
-            return Response("Nothing to delete", status=status.HTTP_200_OK)
-    else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -211,23 +201,20 @@ def forecast(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
-        time_range = request.GET.get('time')
+        time_range = int(request.GET.get('time'))
         target = request.GET.get("metric")
         if not df.empty:
             if "Date" not in df.columns:
                 return Response("Date column not found", status=status.HTTP_404_NOT_FOUND)
-            
-            # df = df.groupby("Date")[target].sum()
-            # X, y = series_to_supervised(df[[target]])
             test_size = 0.8
-            # X_train, x_test, y_train, y_test = train_test_split(X, y, test_size)
-            prophet = {}
-            prophet['model'], eval  = train_with_prophet(df, test_size, target)
-            prophet['mse'], prophet['mae'] = eval.mse(), eval.mae()
-            future = prophet['model'].make_future_dataframe(periods=time_range)
-            future_sum = sum(prophet['model'].predict(future)['y_hat'])
-            
-            response = {'value': future_sum, 'mse': prophet['mse'], 'mae': prophet['mae'], 'eval_df': eval.get_eval_df().to_dict()}
+            model = train_with_prophet(df, test_size, target)
+            future_sum = model._make_predict(time_range)
+            response = {
+                "mse": model.eval.mse(), 
+                "mae": model.eval.mae(), 
+                "value": future_sum, 
+                "eval": model.eval.get_eval_df().to_dict('records')
+                }
             return Response(response, status=status.HTTP_200_OK)
         else:
             return Response("File not found", status=status.HTTP_404_NOT_FOUND)

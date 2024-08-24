@@ -6,148 +6,111 @@ from prophet import Prophet
 from minio import Minio
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import numpy as np
-# from keras.models import Sequential
-# from keras.layers import Dense
-# from keras.layers import LSTM, Bidirectional
-# from keras.callbacks import EarlyStopping
-# evaluate an xgboost regression model on the housing dataset
-from numpy import absolute
-from pandas import read_csv
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import RepeatedKFold
+from abc import ABC, abstractmethod
+from sklearn.model_selection import cross_val_score, RepeatedKFold
 from xgboost import XGBRegressor
 
+class ForecastModel(ABC):
 
-def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
-    n_in -= 1
-    n_vars = 1 if type(data) is list else data.shape[1]
-    df = pd.DataFrame(data)
-    cols, names = list(), list()
+    @abstractmethod
+    def train(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def _make_predict(self, *args, **kwargs):
+        pass
+
+    def train_test_split(self, X: pd.DataFrame, y: pd.Series, test_size: float):
+        split_index = int((1 - test_size) * len(X))
+        X_train = X[:split_index]
+        X_test = X[split_index:]
+        y_train = y[:split_index]
+        y_test = y[split_index:]
+        return X_train, X_test, y_train, y_test
     
-    # Input sequence (t-n, ... t-1)
-    for i in range(n_in, 0, -1):
-        cols.append(df.shift(i))
-        names += [('var%d(t-%d)' % (j+1, i)) for j in range(n_vars)]
 
+    def series_to_supervised(self, data, n_in=1, n_out=1, dropnan=True) -> pd.DataFrame:
+        n_in -= 1
+        n_vars = 1 if type(data) is list else data.shape[1]
+        df = pd.DataFrame(data)
+        cols, names = list(), list()
+        
+        for i in range(n_in, 0, -1):
+            cols.append(df.shift(i))
+            names += [('var%d(t-%d)' % (j+1, i)) for j in range(n_vars)]
 
-    cols.append(df.shift(0))
-    names += [('var%d(t)' % (j+1)) for j in range(n_vars)]
+        cols.append(df.shift(0))
+        names += [('var%d(t)' % (j+1)) for j in range(n_vars)]
+        
+        cols.append(df.shift(-n_out))
+        names += [('var%d(t+%d)' % (j+1, n_out)) for j in range(n_vars)]
+
+        agg = pd.concat(cols, axis=1)
+        agg.columns = names
+        
+        if dropnan:
+            agg.dropna(inplace=True)
+        return agg
+
+class ProphetModel(ForecastModel):
+    def __init__(self):
+        self.model = Prophet()
+        self.is_trained = False
+        self.eval = None
+
+    def train(self, test_size: float, data: pd.DataFrame, target: str):
+        data = data.groupby("Date")[target].sum().reset_index()
+        data.rename({'Date': 'ds', target: 'y'}, axis=1, inplace=True)
+        
+        split_index = int((1 - test_size) * len(data))
+        train_set = data.iloc[:split_index, :]
+        test_set = data.iloc[split_index:, :]
+
+        self.model.fit(train_set)
+        self.is_trained = True
+
+        forecast = self.model.predict(test_set)
+        self.eval = Evaluation(test_set['ds'], forecast['yhat'], test_set['y'])
+        self.model = Prophet().fit(data)
+
+    def _make_predict(self, time_range: int) -> float:
+        future = self.model.make_future_dataframe(periods=time_range)
+        future = self.model.predict(future.tail(time_range))
+        print(len(future[['ds', 'yhat']].to_dict('records')))
+        
+        return future[['ds', 'yhat']].to_dict('records')
+
+class Evaluation:
     
-    cols.append(df.shift(-n_out))
-    names += [('var%d(t+%d)' % (j+1, n_out)) for j in range(n_vars)]
-    # Put it all together
-    agg = pd.concat(cols, axis=1)
-    agg.columns = names
-    
-    # Drop rows with NaN values
-    if dropnan:
-        agg.dropna(inplace=True)
-    return agg
-
-def train_test_split(X, y, test_size):
-    split_index = int(test_size * len(X))
-    X_train = X[:split_index]
-    X_test = X[split_index:]
-
-    y_train = y[:split_index]
-    y_test = y[split_index:]
-
-    return X_train, X_test, y_train, y_test
-
-class Evaluation():
-    
-    def __init__(self, ds, y_hat, y_truth):
+    def __init__(self, ds: pd.Series, y_hat: pd.Series, y_truth: pd.Series):
         self.ds = ds
         self.y_hat = y_hat
         self.y_truth = y_truth
 
-    def mse(self):
+    def mse(self) -> float:
         return mean_squared_error(self.y_hat, self.y_truth)
     
-    def mae(self):
+    def mae(self) -> float:
         return mean_absolute_error(self.y_hat, self.y_truth)
 
-    def plot(self):
+    def plot(self) -> None:
         plt.figure(figsize=(10, 6))
         plt.plot(self.ds, self.y_truth, label='Real', color='blue')
         plt.plot(self.ds, self.y_hat, label='Predicted', color='orange')
 
-        # Formatting the plot
         plt.title('Real vs Predicted Values')
-
         plt.xlabel('Date')
         plt.ylabel('Value')
         plt.xticks(rotation=45)
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-
-        # Show the plot
         plt.show()
 
-    def get_eval_df(self):
-        return pd.DataFrame({'ds': self.ds, 'y_hat': self.y_hat, "y_truth": self.y_truth})
+    def get_eval_df(self) -> pd.DataFrame:
+        return pd.DataFrame({'ds': list(self.ds), 'y_hat': list(self.y_hat), "y_truth": list(self.y_truth)})
 
-    
-    def evaluation(self):
+    def show_evaluation(self) -> None:
         print("Mean Squared Error:", self.mse())
         print("Mean Absolute Error:", self.mae())
         self.plot()
-
-def train_with_prophet(data, test_size, target):
-    # Prepare the data for Prophet
-    prophet_data = data.groupby("Date")[target].sum()
-    prophet_train = prophet_data.reset_index()
-    prophet_train = prophet_train.rename(columns={"Date": "ds", target: "y"})
-    prophet_train["ds"] = pd.to_datetime(prophet_train["ds"])
-    print(target in data.columns)
-
-    # Split the data into training and testing sets
-    index = int(test_size * len(prophet_train))
-    train = prophet_train.iloc[:index, :]
-    test = prophet_train.iloc[index:, :]
-    # Train the Prophet model
-
-    model = Prophet()
-    model.fit(train)
-
-    # Make predictions
-    forecast = model.predict(test)
-
-    eval = Evaluation(test['ds'], forecast['yhat'], test['y'])
-    eval.evaluation()
-    model.fit(prophet_train)
-    return model, eval
-
-
-        
-class ForecastModel:
-
-    def __init__(self, data, time_range, target, test_size):
-        self.xgb = XGBRegressor()
-        self.data = data
-        self.time_range = time_range
-        self.target = target
-        self.supervised_series = series_to_supervised(self.data.set_index("Date"), 30, self.time_range)
-        self.X = self.supervised_series.iloc[:, :-1]
-        self.y = self.supervised_series.iloc[:, -1]
-        self.time_stamp = self.X.index
-
-        index = int(0.8 * len(self.X))
-        self.X_train = self.X[:index, :]
-        self.y_train = self.y[:index]
-        self.X_test = self.X[index:, :]
-        self.y_test = self.y[index:]
-        self.eval = Evaluation()
-
-
-
-    def _forecast(self):
-        if self.time_range in [7, 30, 90]:
-            self.xgb.fit(self.X_train, self.y_train)
-
-    
-    
-    
-
-    

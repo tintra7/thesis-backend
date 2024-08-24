@@ -9,36 +9,7 @@ MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
 MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
 MINIO_ENDPOINT = settings.MINIO_ENDPOINT
-minio_client = Minio(
-    endpoint="minio:9000",
-    access_key=MINIO_ACCESS_KEY,
-    secret_key=MINIO_SECRET_KEY,
-    secure=False
-)
 
-def read_data(file_name):
-    try:
-        if not minio_client.bucket_exists(BUCKET_NAME):
-            print(f"Bucket {BUCKET_NAME} does not exist.")
-            return pd.DataFrame()
-    except:
-        print("Bucket not found")
-
-    try:
-        df = pd.read_csv(f"s3://{BUCKET_NAME}/{file_name}",
-                        encoding='unicode_escape',
-                        storage_options={
-                            "key": MINIO_ACCESS_KEY,
-                            "secret": MINIO_SECRET_KEY,
-                            "client_kwargs": {"endpoint_url": f"http://{MINIO_ENDPOINT}"}
-                        })
-        for i in df.columns:
-            if "Unnamed" in i:
-                df = df.drop(i, axis=1)
-        return df
-    except(Exception):
-        print(Exception)
-        return pd.DataFrame()
 
 def validate_function(function):
     function_list = {"sum", "mean", "min", "max", "std", "median", "count"}
@@ -63,5 +34,17 @@ def calculate_value(df, function, column):
         res = len(df[column].unique())
     return res
 
-def create_pivot(data, values, index, aggfunc, columns):
-    pivot_table = pd.pivot(data=data, values=values, index=index, aggfunc=aggfunc, columns=columns)
+def create_pivot(data, values, index, aggfunc, column):
+    res = []
+    if column != "":
+        pivot_table = pd.pivot_table(data=data, values=values, index=index, aggfunc=aggfunc, columns=column, fill_value=0)
+        for col in pivot_table.columns:
+            res.append({col: {
+                "x": list(pivot_table.index),
+                "y": list(pivot_table[col].values)
+            }})
+    else:
+        pivot_table = pd.pivot_table(data=data, values=values, index=index, aggfunc=aggfunc, fill_value=0)
+        res = [{"x": list(pivot_table.index),
+                "y": list(pivot_table.values)}]
+    return res

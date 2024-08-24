@@ -7,7 +7,7 @@ from django.conf import settings
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
-
+from data.forecast.model import ProphetModel
 import json
 
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
@@ -17,7 +17,7 @@ MINIO_ENDPOINT = settings.MINIO_ENDPOINT
 
 class MinioClient(Minio):
 
-    def to_csv(self, df, file_name):
+    def to_csv(self, df, file_name) -> bool:
         try:
             if not self.bucket_exists(BUCKET_NAME):
                 print(f"Bucket {BUCKET_NAME} does not exist.")
@@ -30,6 +30,7 @@ class MinioClient(Minio):
                                 data=csv_buffer,
                                 length=len(csv_bytes),
                                 content_type='application/csv')
+                return True
             except:
                 print("File not except")
                 return False
@@ -38,7 +39,7 @@ class MinioClient(Minio):
             return False
 
 
-    def read_csv(self, file_name):
+    def read_csv(self, file_name) -> pd.DataFrame:
         try:
             if not self.bucket_exists(BUCKET_NAME):
                 print(f"Bucket {BUCKET_NAME} does not exist.")
@@ -62,7 +63,7 @@ class MinioClient(Minio):
             print("Bucket not found")
             return pd.DataFrame()
 
-    def to_json(self, data, file_name):
+    def to_json(self, data, file_name) -> bool:
         json_data = json.dumps(data, indent=4)
         json_bytes = BytesIO(json_data.encode('utf-8'))
         try:
@@ -75,16 +76,19 @@ class MinioClient(Minio):
                 content_type="application/json"
             )
             print(f"JSON data is successfully uploaded to bucket '{BUCKET_NAME}' as '{file_name}'.")
+            return True
         except S3Error as e:
             print(f"Error occurred: {e}")
+            return False
 
-    def read_json(self, file_name):
+    def read_json(self, file_name) -> dict:
         try:
             if not self.bucket_exists(BUCKET_NAME):
                 print(f"Bucket {BUCKET_NAME} does not exist.")
                 return {}
         except:
             print("Bucket not found")
+            return {}
 
         try:
             response = self.get_object(BUCKET_NAME, file_name)
@@ -94,22 +98,25 @@ class MinioClient(Minio):
             return dic
         except(Exception):
             print(Exception)
-            return pd.DataFrame()
+            return {}
         
 
-    def _remove_object(self, user_id):
+    def _remove_object(self, user_id) -> bool:
         object_list = self.list_objects(bucket_name=BUCKET_NAME, prefix=f"{user_id}", recursive=True)
-        if len(list(object_list)) > 0:
-            object_name_list = [obj.object_name for obj in list(object_list)]
-            for object_name in object_name_list:
-                self.remove_object(object_name)
+        object_list = list(object_list)
+        if len(object_list) > 0:
+            for obj in object_list:
+                self.remove_object(BUCKET_NAME, obj.object_name)
             return True
         return False
     
 def try_parse_datetime(data, formats):
     for fmt in formats:
         try:
-            return pd.to_datetime(data, format=fmt)
+            if fmt == "":
+                return pd.to_datetime(data)
+            else:
+                return pd.to_datetime(data, format=fmt)
         except ValueError:
             continue
     return None
@@ -122,12 +129,12 @@ def data_preprocessing(df: pd.DataFrame):
             except(Exception):
                 print(Exception)
     if "Date" in df.columns:
-        # Try parse multiple datetime until success, if
-        formats = ["%d/%m/%Y"]
+        # Try parse multiple datetime until success, "" is stand for use default format of pandas
+        formats = ["%d/%m/%Y", ""]
         datetime = try_parse_datetime(df['Date'], formats=formats)
         if not datetime.empty:
             df['Date'] = datetime
-        
+    df = df.dropna(axis=0, inplace=True)
     return df
 
 def rfm_analysis(df, timestamp, monetary, customer):
@@ -216,3 +223,8 @@ def mapping(user_columns: list[str], user_id: str):
             'shopping_mall': 'Store Location'
         }
 
+def train_with_prophet(data, test_size, target):
+    # Prepare the data for Prophet
+    model = ProphetModel()
+    model.train(test_size, data, target)
+    return model
