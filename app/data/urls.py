@@ -10,5 +10,4 @@ urlpatterns = [
     re_path(r'^row/$', views.get_data_length),
     re_path(r'^forecast/$', views.forecast),
     re_path(r'^mapping/$', views.get_mapping),
-
 ]

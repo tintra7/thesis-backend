@@ -129,7 +129,7 @@ def get_histplot(request):
         if df.empty:
             return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
         res = {"data": list(df[column].values)}
-        Response(res, status=status.HTTP_200_OK)
+        return Response(res, status=status.HTTP_200_OK)
     else:
         return Response({"message:": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
     

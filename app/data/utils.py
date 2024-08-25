@@ -134,7 +134,7 @@ def data_preprocessing(df: pd.DataFrame):
         datetime = try_parse_datetime(df['Date'], formats=formats)
         if not datetime.empty:
             df['Date'] = datetime
-    df = df.dropna(axis=0, inplace=True)
+    df = df.dropna(axis=0)
     return df
 
 def rfm_analysis(df, timestamp, monetary, customer):

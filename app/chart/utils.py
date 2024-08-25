@@ -39,12 +39,14 @@ def create_pivot(data, values, index, aggfunc, column):
     if column != "":
         pivot_table = pd.pivot_table(data=data, values=values, index=index, aggfunc=aggfunc, columns=column, fill_value=0)
         for col in pivot_table.columns:
-            res.append({col: {
+            res.append({
                 "x": list(pivot_table.index),
-                "y": list(pivot_table[col].values)
-            }})
+                "y": list(pivot_table[col].values),
+                'name': col
+            })
     else:
         pivot_table = pd.pivot_table(data=data, values=values, index=index, aggfunc=aggfunc, fill_value=0)
+
         res = [{"x": list(pivot_table.index),
-                "y": list(pivot_table.values)}]
+                "y": list(pivot_table.values.flatten())}]
     return res
