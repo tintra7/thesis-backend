@@ -7,4 +7,5 @@ urlpatterns = [
     re_path(r'^linechart/$', views.get_linechart),
     re_path(r'^barchart/$', views.get_barchart),
     re_path(r'^piechart/$', views.get_piechart),
+    re_path(r'^boxplot/$', views.get_boxplot),
 ]

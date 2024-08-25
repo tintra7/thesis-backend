@@ -11,6 +11,9 @@ BUCKET_NAME = settings.MINIO_BUCKET_NAME
 MINIO_ENDPOINT = settings.MINIO_ENDPOINT
 
 
+def contain_columns(column, data_columns):
+    return column in data_columns
+
 def validate_function(function):
     function_list = {"sum", "mean", "min", "max", "std", "median", "count"}
     if function not in function_list:
@@ -39,12 +42,23 @@ def create_pivot(data, values, index, aggfunc, column):
     if column != "":
         pivot_table = pd.pivot_table(data=data, values=values, index=index, aggfunc=aggfunc, columns=column, fill_value=0)
         for col in pivot_table.columns:
-            res.append({col: {
+            res.append({
                 "x": list(pivot_table.index),
-                "y": list(pivot_table[col].values)
-            }})
+                "y": list(pivot_table[col].values),
+                'name': col
+            })
     else:
         pivot_table = pd.pivot_table(data=data, values=values, index=index, aggfunc=aggfunc, fill_value=0)
+
         res = [{"x": list(pivot_table.index),
-                "y": list(pivot_table.values)}]
+                "y": list(pivot_table.values.flatten())}]
+    return res
+
+def create_boxplot(data: pd.DataFrame, x: str, y: str):
+    res = {}
+    res['cols'] = []
+    unique_values = data[x].unique()
+    for value in unique_values:
+        res['cols'].append(value)
+        res[value] = list(data[data[x] == value][y].values)
     return res
