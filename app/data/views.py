@@ -8,14 +8,16 @@ from rest_framework import generics, authentication, permissions
 from rest_framework.pagination import PageNumberPagination
 from io import StringIO
 from prophet import Prophet
+import json
 
 from data.utils import (
     MinioClient,
     rfm_analysis,
     descriptive_analysis,
-    mapping,
+    get_mapping,
     data_preprocessing,
-    train_with_prophet
+    train_with_prophet,
+    train_with_xgboost
 )
 
 import numpy as np
@@ -56,7 +58,7 @@ def data(request):
             # return paginator.get_paginated_response(response_data)
             return Response({"data": df.to_dict('records')}, status=status.HTTP_200_OK)
         else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+            return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     if request.method == "DELETE":
         user_id = request.user.id
         remove_status = minio_client._remove_object(user_id=user_id)
@@ -74,12 +76,9 @@ def data(request):
         if file is not None:
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
-            map = mapping(df.columns, [])
+            map = get_mapping(df.columns, [])
             df = data_preprocessing(df.rename(map, axis=1))
             is_uploaded = minio_client.to_csv(df, file_name)
-            if not is_uploaded:
-                return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
-            is_uploaded = minio_client.to_json(map, f"{user_id}/mapping.json")
             if not is_uploaded:
                 return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
             response = {"message": "File uploaded successfully",
@@ -88,7 +87,7 @@ def data(request):
         else:
             return Response("No file uploaded", status=status.HTTP_400_BAD_REQUEST)
     else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -109,9 +108,9 @@ def get_columns(request):
             response = {"metric": metric_columns, "nominal": nominal_columns}
             return Response(response, status=status.HTTP_200_OK)
         else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+            return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['POST'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -128,7 +127,7 @@ def descriptive(request):
         response_data = descriptive_analysis(df, metric, ordinal, method)
         return Response({"data": response_data}, status=status.HTTP_200_OK)
     else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(["POST"])
 @authentication_classes([authentication.TokenAuthentication])
@@ -144,21 +143,24 @@ def rfm(request):
             df = df.rename(mapper, axis=1)
             timestamp = "Date"
             monetary = "Total Price"
-            customer = "Custormer ID"
+            customer = "Custormer Name" if "Custormer Name" in df.columns else "Custormer ID"
+            if timestamp not in df.columns:
+                return Response({"message": "Missing datetime colunm"}, status=status.HTTP_400_BAD_REQUEST)
+            if monetary not in df.columns:
+                return Response({"message": "Missing monetary colunm"}, status=status.HTTP_400_BAD_REQUEST)
+            if customer not in df.columns:
+                return Response({"message": "Missing customer colunm"}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 rfm_df = rfm_analysis(df, timestamp, monetary, customer)
-                response_data = []
-                for i in range(len(rfm_df)):
-                    for j in rfm_df.columns:
-                        response_data += [{str(j): rfm_df.iloc[i][j]}]
-                return Response({"data": rfm_df.head()}, status=status.HTTP_200_OK)
+                response_data = rfm_df.to_dict('records')
+                return Response({"data": response_data}, status=status.HTTP_200_OK)
             except(Exception):
                 print(Exception)
-                return Response("Not valid timestamp column", status=status.HTTP_406_NOT_ACCEPTABLE)
+                return Response({"message": "Calculate RFM failed"}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+            return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 @api_view(['GET'])
@@ -173,15 +175,15 @@ def get_data_length(request):
             response = {"length": len(df)}
             return Response(response, status=status.HTTP_200_OK)
         else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+            return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT'])
 @authentication_classes([authentication.TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
-def get_mapping(request):
+def mapping(request):
     if request.method == "GET":
         user_id = request.user.id
         file_name = f"{user_id}/mapping.json"
@@ -189,10 +191,43 @@ def get_mapping(request):
         if dic:
             return Response({"mapping": dic}, status=status.HTTP_200_OK)
         else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
-    
+            return Response({"message": "File not found"}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "POST":
+        user_id = request.user.id
+        file_name = f"{user_id}/mapping.json"
+        dic = request.PUT.get("mapping", "")
+        if dic == "":
+            return Response({"message":"Missing mapping"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            dic = json.loads(dic)
+        except:
+            return Response({"message":"JSON format is not compatible"}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        if "Date" not in dic:
+            return Response({"message":"Your data must have a datetime column"}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        is_load = minio_client.to_json(dic, file_name=file_name)
+        if is_load:
+            return Response({"message":"Upload successfuly"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"message":"Update mapping failed"}, status=status.HTTP_400_BAD_REQUEST)
+        
+    if request.method == "PUT":
+        user_id = request.user.id
+        file_name = f"{user_id}/mapping.json"
+        dic = request.PUT.get("mapping", "")
+        if dic == "":
+            return Response({"message":"Missing mapping"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            dic = json.loads(dic)
+        except:
+            return Response({"message":"JSON format is not compatible"}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        is_load = minio_client.to_json(dic, file_name=file_name)
+        if is_load:
+            return Response({"message":"Update successfuly","mapping": dic}, status=status.HTTP_200_OK)
+        else:
+            return Response({"message":"Update mapping failed"}, status=status.HTTP_400_BAD_REQUEST)
+
     else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
         
 @api_view(['GET'])
 @authentication_classes([authentication.TokenAuthentication])
@@ -208,16 +243,21 @@ def forecast(request):
             if "Date" not in df.columns:
                 return Response("Date column not found", status=status.HTTP_404_NOT_FOUND)
             test_size = 0.8
-            model = train_with_prophet(df, test_size, target)
-            future_sum = model._make_predict(time_range)
+            prophet_model = train_with_prophet(df, test_size, target)
+            xgboost_model = train_with_xgboost(df, test_size, target, time_range=time_range)
+            if prophet_model.eval.mae() < xgboost_model.eval.mae():
+                final_model = prophet_model
+            else:
+                final_model = xgboost_model
             response = {
-                "mse": model.eval.mse(), 
-                "mae": model.eval.mae(), 
-                "value": future_sum, 
-                "eval": model.eval.get_eval_df()
+                "model_name": final_model.name,
+                "mse": final_model.eval.mse(), 
+                "mae": final_model.eval.mae(), 
+                "value": final_model._make_predict(time_range), 
+                "eval": final_model.eval.get_eval_df()
                 }
             return Response(response, status=status.HTTP_200_OK)
         else:
-            return Response("File not found", status=status.HTTP_404_NOT_FOUND)
+            return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     else:
-        return Response("Method not allowed", status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)

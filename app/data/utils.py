@@ -1,4 +1,5 @@
 from io import BytesIO
+import re
 from minio import Minio
 from minio.error import S3Error
 
@@ -7,7 +8,7 @@ from django.conf import settings
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
-from data.forecast.model import ProphetModel
+from data.forecast.model import ProphetModel, XGBoostModel
 import json
 
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
@@ -121,7 +122,21 @@ def try_parse_datetime(data, formats):
             continue
     return None
 
+def remove_symbol(s):
+    trim = re.compile(r'[^\d.,]+')
+
+    result = trim.sub('', s)
+    return result
+
 def data_preprocessing(df: pd.DataFrame):
+    if "Unit Price" in df.columns and not is_numeric_dtype(df['Unit Price']):
+        df['Unit Price'] = df['Unit Price'].apply(remove_symbol)
+        df['Unit Price'] = pd.to_numeric(df['Unit Price'])
+
+    if "Total Price" in df.columns and not is_numeric_dtype(df['Unit Price']):
+        df['Total Price'] = df['Total Price'].apply(remove_symbol)
+        df['Total Price'] = pd.to_numeric(df['Total Price'])   
+
     if "Total Price" not in df.columns:
         if "Unit Price" in df.columns and "Quantity" in df.columns:
             try:
@@ -137,7 +152,7 @@ def data_preprocessing(df: pd.DataFrame):
     df = df.dropna(axis=0)
     return df
 
-def rfm_analysis(df, timestamp, monetary, customer):
+def rfm_analysis(df: pd.DataFrame, timestamp: str, monetary: str, customer: str) -> pd.DataFrame:
     df[timestamp] = pd.to_datetime(df[timestamp])
     df_recency = df.groupby(by=customer,
             as_index=False)[timestamp].max()
@@ -198,8 +213,9 @@ def descriptive_analysis(df, metric, ordinal, method):
             data = df.loc[df['index'] == i]
             response_data += [{str(data["index"].values[0]) : float(data[metric])}]
     return response_data
+    
 
-def mapping(user_columns: list[str], user_id: str):
+def get_mapping(user_columns: list[str], user_id: str):
     """
     Return mapping user columns and system column and store as JSON file.
 
@@ -226,5 +242,11 @@ def mapping(user_columns: list[str], user_id: str):
 def train_with_prophet(data, test_size, target):
     # Prepare the data for Prophet
     model = ProphetModel()
+    model.train(test_size, data, target)
+    return model
+
+def train_with_xgboost(data, test_size, target, time_range, lag_size=30):
+    # Prepare the data for Prophet
+    model = XGBoostModel(lag_size, time_range)
     model.train(test_size, data, target)
     return model
