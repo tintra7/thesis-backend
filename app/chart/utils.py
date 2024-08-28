@@ -98,9 +98,10 @@ def create_pivot(data, values, index, aggfunc, column):
 
 def create_boxplot(data: pd.DataFrame, x: str, y: str):
     res = {}
-    res['cols'] = []
+    res['data'] = []
     unique_values = data[x].unique()
     for value in unique_values:
-        res['cols'].append(value)
-        res[value] = list(data[data[x] == value][y].values)
+        # res['cols'].append(value)
+        res['data'].append({'y': list(data[data[x] == value][y].values), 'name': value})
+        # res[value] = list(data[data[x] == value][y].values)
     return res
