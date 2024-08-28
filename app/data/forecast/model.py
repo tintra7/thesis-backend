@@ -9,6 +9,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from sklearn.model_selection import cross_val_score, RepeatedKFold
 from xgboost import XGBRegressor
+import datetime
 
 class ForecastModel(ABC):
 
@@ -53,10 +54,12 @@ class ForecastModel(ABC):
         return agg
 
 class ProphetModel(ForecastModel):
+
     def __init__(self):
         self.model = Prophet()
         self.is_trained = False
         self.eval = None
+        self.name = "Prophet"
 
     def train(self, test_size: float, data: pd.DataFrame, target: str):
         data = data.groupby("Date")[target].sum().reset_index()
@@ -76,9 +79,40 @@ class ProphetModel(ForecastModel):
     def _make_predict(self, time_range: int) -> float:
         future = self.model.make_future_dataframe(periods=time_range)
         future = self.model.predict(future.tail(time_range))
-        print(len(future[['ds', 'yhat']].to_dict('records')))
         
         return future[['ds', 'yhat']].to_dict('records')
+    
+class XGBoostModel(ForecastModel):
+
+    def __init__(self, lag_size=30, time_range=30):
+        self.model = XGBRegressor(n_estimators=1000, max_depth=7, eta=0.1, subsample=0.7, colsample_bytree=0.8)
+        self.lag_size = lag_size
+        self.time_range = time_range
+        self.name = "XGBoost"
+
+    def train(self, test_size, data: pd.DataFrame, target):
+        data = data.groupby("Date")[[target]].sum()
+        supervised_data = self.series_to_supervised(data=data, n_in=self.lag_size, n_out=self.time_range, dropnan=False)
+        self.future_data = supervised_data.tail(self.time_range).iloc[:, :-1]
+        supervised_data = supervised_data.dropna()
+        
+        X = supervised_data.iloc[:, :-1]
+        y = supervised_data.iloc[:, -1]
+        X_train, X_test, y_train, y_test = self.train_test_split(X=X, y=y, test_size=test_size)
+
+        self.model.fit(X_train, y_train)
+
+        y_hat = self.model.predict(X_test)
+
+        self.eval = Evaluation(X_test.index, y_hat, y_test)
+
+    def _make_predict(self, time_range=None):
+        y_hat = self.model.predict(self.future_data)
+        self.future_data.index = pd.to_datetime(self.future_data.index)
+        self.future_data.index = self.future_data.index + datetime.timedelta(days=self.time_range)
+        res = pd.DataFrame({"ds": list(self.future_data.index), "yhat":list(y_hat)}).to_dict('records')
+        return res
+
 
 class Evaluation:
     

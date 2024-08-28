@@ -5,6 +5,7 @@ from django.conf import settings
 import numpy as np
 import pandas as pd
 
+
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
 MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
@@ -15,10 +16,47 @@ def contain_columns(column, data_columns):
     return column in data_columns
 
 def validate_function(function):
-    function_list = {"sum", "mean", "min", "max", "std", "median", "count"}
+    function_list = {"sum", "mean", "min", "max", "std", "median", "count", "unique"}
     if function not in function_list:
         return False
     return True
+
+def validate_filter(filter_list):
+    if filter_list == []:
+        return True
+    for filter in filter_list:
+        if filter['type'] == 'daterange':
+            from_date = pd.to_datetime(filter['from_to'][0])
+            to_date = pd.to_datetime(filter['from_to'][1])
+            if from_date > to_date:
+                return False
+        elif filter['type'] == 'range':
+            from_value = pd.to_numeric(filter['from_to'][0])
+            to_value = pd.to_numeric(filter['from_to'][1])
+            if from_value > to_value:
+                return False
+    return True
+
+def get_filter(df, filter_list):
+    if filter_list == []:
+        return df
+    filter_df = df.copy()
+    for filter in filter_list:
+        column = filter['column']
+        type = filter['type']
+        if type == "include":
+            filter_df = filter_df[filter_df[column].isin(filter['values'])]
+        elif type == "daterange":
+            from_date = pd.to_datetime(filter['from_to'][0])
+            to_date = pd.to_datetime(filter['from_to'][1])
+            filter_df[column] = pd.to_datetime(filter_df[column])
+            filter_df = filter_df[(filter_df[column] >= from_date) & (filter_df[column] <= to_date)]
+        elif type == "range":
+            from_value = pd.to_numeric(filter['from_to'][0])
+            to_value = pd.to_numeric(filter['from_to'][1])
+            filter_df = filter_df[(filter_df[column] >= from_value) & (filter_df[column] <= to_value)]
+    return filter_df
+                
 
 def calculate_value(df, function, column):
     if function == "sum":
@@ -35,7 +73,11 @@ def calculate_value(df, function, column):
         res = np.median(df[column])
     elif function == "count":
         res = len(df[column].unique())
+    elif function == "unique":
+        res = df[column].unique()
     return res
+
+
 
 def create_pivot(data, values, index, aggfunc, column):
     res = []

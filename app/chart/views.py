@@ -1,8 +1,11 @@
+import json
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework import generics, authentication, permissions
 from chart.utils import (
     calculate_value,
     create_boxplot,
+    get_filter,
+    validate_filter,
     validate_function,
     create_pivot,
     contain_columns
@@ -51,7 +54,7 @@ def get_value(request):
         if not df.empty:
             
             res = calculate_value(df, function, column)
-            return Response({"value": int(res)}, status=status.HTTP_200_OK)
+            return Response({"value": res}, status=status.HTTP_200_OK)
         else:
             return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     else:
@@ -65,6 +68,11 @@ def get_linechart(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
+        filter = request.GET.get("filter", "[]")
+        filter = json.loads(filter)
+        if not validate_filter(filter):
+            return Response({"message":"Filter is not valid"}, status=status.HTTP_400_BAD_REQUEST)
+        df = get_filter(df, filter)
         column = request.GET.get("column", "")
         function = request.GET.get("function", "")
         x = request.GET.get("x", "")
@@ -95,6 +103,11 @@ def get_barchart(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
+        filter = request.GET.get("filter", "[]")
+        filter = json.loads(filter)
+        if not validate_filter(filter):
+            return Response({"message":"Filter is not valid"}, status=status.HTTP_400_BAD_REQUEST)
+        df = get_filter(df, filter)
         column = request.GET.get("column", "")
         function = request.GET.get("function", "")
         x = request.GET.get("x", "")
@@ -125,6 +138,11 @@ def get_histplot(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
+        filter = request.GET.get("filter", "[]")
+        filter = json.loads(filter)
+        if not validate_filter(filter):
+            return Response({"message":"Filter is not valid"}, status=status.HTTP_400_BAD_REQUEST)
+        df = get_filter(df, filter)
         column = request.GET.get("column", "")
         if column == "" or column not in df.columns:
             return Response({"message": "Column not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -143,6 +161,11 @@ def get_piechart(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
+        filter = request.GET.get("filter", "[]")
+        filter = json.loads(filter)
+        if not validate_filter(filter):
+            return Response({"message":"Filter is not valid"}, status=status.HTTP_400_BAD_REQUEST)
+        df = get_filter(df, filter)
         labels = request.GET.get("labels", "")
         values = request.GET.get("values", "")
         function = request.GET.get("function", "")
@@ -170,6 +193,11 @@ def get_boxplot(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
+        filter = request.GET.get("filter", "[]")
+        filter = json.loads(filter)
+        if not validate_filter(filter):
+            return Response({"message":"Filter is not valid"}, status=status.HTTP_400_BAD_REQUEST)
+        df = get_filter(df, filter)
         x = request.GET.get("x", "")
         y = request.GET.get("y", "")
         if x == "" or y == "":
