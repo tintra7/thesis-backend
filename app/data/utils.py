@@ -10,11 +10,20 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from data.forecast.model import ProphetModel, XGBoostModel
 import json
+from openai import RateLimitError, OpenAI
+import time
+
 
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
 MINIO_SECRET_KEY = settings.MINIO_SECRET_KEY
 BUCKET_NAME = settings.MINIO_BUCKET_NAME
 MINIO_ENDPOINT = settings.MINIO_ENDPOINT
+API_KEY = settings.OPENAI_API_KEY
+
+INPUT_PRICE = 0.15/1000000
+OUTPUT_PRICE = 0.6/1000000
+
+openai_client = OpenAI(api_key=API_KEY)
 
 class MinioClient(Minio):
 
@@ -216,29 +225,71 @@ def descriptive_analysis(df, metric, ordinal, method):
     return response_data
     
 
-def get_mapping(user_columns: list[str], user_id: str):
+def get_mapping(user_columns: list[str]):
     """
-    Return mapping user columns and system column and store as JSON file.
+    Return mapping of user columns to system columns and store as JSON file.
 
-            Parameters:
-                    user_columns (list(str)): User columns
-                    user_id (str): User ID
-            Returns:
-                    map (dict)
+    Parameters:
+        user_columns (list(str)): User columns
+    
+    Returns:
+        map (dict): Mapping of user columns to system columns
     """
+    default_mapping = {column: column for column in user_columns}
 
-    return {
-            'invoice_no': 'Transaction ID',
-            'customer_id': 'Customer ID',
-            'gender': "Customer Gender",
-            'age': "Customer Age",
-            'category': 'Category',
-            'quantity': 'Quantity',
-            'price': 'Unit Price',
-            'payment_method': 'Payment Method',
-            'invoice_date': 'Date',
-            'shopping_mall': 'Store Location'
-        }
+    prompt = f"""Map the following columns with the list that has the same meaning, if not found, keep the original name of the input column:
+
+        Columns: {user_columns}
+
+        JSON list: {settings.TARGET_LIST}
+
+        Just respond in JSON-like format."""
+    
+    for attempt in range(settings.LIMIT_OPENAPI_CALLS):  # Retry up to 5 times
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt},
+                ]
+            )
+            try:
+                message = response.choices[0].message.content
+                start = message.find('{')
+                end = message.find('}') + 1
+                res = json.loads(message[start: end])
+                input_token = response.usage.prompt_tokens
+                output_token = response.usage.completion_tokens
+                price = input_token * INPUT_PRICE + output_token * OUTPUT_PRICE
+                print("Cost:", price, "$")
+                return res
+            except json.JSONDecodeError:
+                print("Failed to decode JSON response. Returning default mapping.")
+                return default_mapping
+        except RateLimitError:
+            print(f"Rate limit hit, retrying in {2 ** attempt} seconds...")
+            time.sleep(2 ** attempt)  # Exponential backoff
+            continue
+        except Exception as e:
+            print(f"Unexpected error: {str(e)}. Returning default mapping.")
+            return default_mapping
+    
+    print("Max retries reached. Returning default mapping.")
+    return default_mapping
+
+    # return {
+    #         'invoice_no': 'Transaction ID',
+    #         'customer_id': 'Customer ID',
+    #         'gender': "Customer Gender",
+    #         'age': "Customer Age",
+    #         'category': 'Category',
+    #         'quantity': 'Quantity',
+    #         'price': 'Unit Price',
+    #         'payment_method': 'Payment Method',
+    #         'invoice_date': 'Date',
+    #         'shopping_mall': 'Store Location'
+    #     }
 
 def train_with_prophet(data, test_size, target):
     # Prepare the data for Prophet

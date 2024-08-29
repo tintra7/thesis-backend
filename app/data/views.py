@@ -72,11 +72,11 @@ def data(request):
         delimiter = request.data.get("delimiter")
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-
+        
         if file is not None:
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
-            map = get_mapping(df.columns, [])
+            map = get_mapping(list(df.columns))
             df = data_preprocessing(df.rename(map, axis=1))
             is_uploaded = minio_client.to_csv(df, file_name)
             if not is_uploaded:
@@ -220,6 +220,8 @@ def mapping(request):
             dic = json.loads(dic)
         except:
             return Response({"message":"JSON format is not compatible"}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        if "Date" not in list(dic.values()):
+            return Response({"message":"Your data must have a datetime column"}, status=status.HTTP_406_NOT_ACCEPTABLE)
         is_load = minio_client.to_json(dic, file_name=file_name)
         if is_load:
             return Response({"message":"Update successfuly","mapping": dic}, status=status.HTTP_200_OK)

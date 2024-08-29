@@ -166,4 +166,6 @@ MAX_PAGE_SIZE = 200
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-TARGET_LIST = ['Transaction ID', 'Date', 'Time', 'Customer ID', 'Product ID', 'Product Name', 'Category', 'Quantity', 'Unit Price', 'Total Price', 'Payment Method', 'Store Location', 'Discount', 'Salesperson ID', 'Profit Margin']
+TARGET_LIST = ['Transaction ID', 'Date', 'Time', 'Customer ID', 'Product ID', 'Product Name', 'Category', 'Quantity', 'Unit Price', 'Total Price', 'Payment Method', 'Store Location', 'Discount', 'Salesperson ID', 'Profit Margin', 'Customer Gender', 'Customer Age']
+
+LIMIT_OPENAPI_CALLS = 1
