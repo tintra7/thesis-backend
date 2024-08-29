@@ -235,61 +235,61 @@ def get_mapping(user_columns: list[str]):
     Returns:
         map (dict): Mapping of user columns to system columns
     """
-    default_mapping = {column: column for column in user_columns}
+    # default_mapping = {column: column for column in user_columns}
 
-    prompt = f"""Map the following columns with the list that has the same meaning, if not found, keep the original name of the input column:
+    # prompt = f"""Map the following columns with the list that has the same meaning, if not found, keep the original name of the input column:
 
-        Columns: {user_columns}
+    #     Columns: {user_columns}
 
-        JSON list: {settings.TARGET_LIST}
+    #     JSON list: {settings.TARGET_LIST}
 
-        Just respond in JSON-like format."""
+    #     Just respond in JSON-like format."""
     
-    for attempt in range(settings.LIMIT_OPENAPI_CALLS):  # Retry up to 5 times
-        try:
-            response = openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt},
-                ]
-            )
-            try:
-                message = response.choices[0].message.content
-                start = message.find('{')
-                end = message.find('}') + 1
-                res = json.loads(message[start: end])
-                input_token = response.usage.prompt_tokens
-                output_token = response.usage.completion_tokens
-                price = input_token * INPUT_PRICE + output_token * OUTPUT_PRICE
-                print("Cost:", price, "$")
-                return res
-            except json.JSONDecodeError:
-                print("Failed to decode JSON response. Returning default mapping.")
-                return default_mapping
-        except RateLimitError:
-            print(f"Rate limit hit, retrying in {2 ** attempt} seconds...")
-            time.sleep(2 ** attempt)  # Exponential backoff
-            continue
-        except Exception as e:
-            print(f"Unexpected error: {str(e)}. Returning default mapping.")
-            return default_mapping
+    # for attempt in range(settings.LIMIT_OPENAPI_CALLS):  # Retry up to 5 times
+    #     try:
+    #         response = openai_client.chat.completions.create(
+    #             model="gpt-4o-mini",
+    #             messages=[
+    #                 {"role": "system", "content": "You are a helpful assistant."},
+    #                 {"role": "user", "content": prompt},
+    #             ]
+    #         )
+    #         try:
+    #             message = response.choices[0].message.content
+    #             start = message.find('{')
+    #             end = message.find('}') + 1
+    #             res = json.loads(message[start: end])
+    #             input_token = response.usage.prompt_tokens
+    #             output_token = response.usage.completion_tokens
+    #             price = input_token * INPUT_PRICE + output_token * OUTPUT_PRICE
+    #             print("Cost:", price, "$")
+    #             return res
+    #         except json.JSONDecodeError:
+    #             print("Failed to decode JSON response. Returning default mapping.")
+    #             return default_mapping
+    #     except RateLimitError:
+    #         print(f"Rate limit hit, retrying in {2 ** attempt} seconds...")
+    #         time.sleep(2 ** attempt)  # Exponential backoff
+    #         continue
+    #     except Exception as e:
+    #         print(f"Unexpected error: {str(e)}. Returning default mapping.")
+    #         return default_mapping
     
-    print("Max retries reached. Returning default mapping.")
-    return default_mapping
+    # print("Max retries reached. Returning default mapping.")
+    # return default_mapping
 
-    # return {
-    #         'invoice_no': 'Transaction ID',
-    #         'customer_id': 'Customer ID',
-    #         'gender': "Customer Gender",
-    #         'age': "Customer Age",
-    #         'category': 'Category',
-    #         'quantity': 'Quantity',
-    #         'price': 'Unit Price',
-    #         'payment_method': 'Payment Method',
-    #         'invoice_date': 'Date',
-    #         'shopping_mall': 'Store Location'
-    #     }
+    return {
+            'invoice_no': 'Transaction ID',
+            'customer_id': 'Customer ID',
+            'gender': "Customer Gender",
+            'age': "Customer Age",
+            'category': 'Category',
+            'quantity': 'Quantity',
+            'price': 'Unit Price',
+            'payment_method': 'Payment Method',
+            'invoice_date': 'Date',
+            'shopping_mall': 'Store Location'
+        }
 
 def train_with_prophet(data, test_size, target):
     # Prepare the data for Prophet
