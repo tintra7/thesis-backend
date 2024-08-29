@@ -68,8 +68,8 @@ def data(request):
             return Response("Nothing to delete", status=status.HTTP_200_OK)
     if request.method == "POST":
         file = request.FILES.get('file')  # Access the uploaded file
-        file_type = request.POST.get("type")
-        delimiter = request.POST.get("delimiter")
+        file_type = request.data.get("type")
+        delimiter = request.data.get("delimiter")
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
 
@@ -155,7 +155,6 @@ def rfm(request):
                 response_data = rfm_df.to_dict('records')
                 return Response({"data": response_data}, status=status.HTTP_200_OK)
             except(Exception):
-                print(Exception)
                 return Response({"message": "Calculate RFM failed"}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -180,7 +179,7 @@ def get_data_length(request):
         return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-@api_view(['GET', 'PUT'])
+@api_view(['GET', 'PUT', 'POST'])
 @authentication_classes([authentication.TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
 def mapping(request):
@@ -195,14 +194,15 @@ def mapping(request):
     if request.method == "POST":
         user_id = request.user.id
         file_name = f"{user_id}/mapping.json"
-        dic = request.PUT.get("mapping", "")
+        dic = request.data.get("mapping", "")
+
         if dic == "":
             return Response({"message":"Missing mapping"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             dic = json.loads(dic)
         except:
             return Response({"message":"JSON format is not compatible"}, status=status.HTTP_406_NOT_ACCEPTABLE)
-        if "Date" not in dic:
+        if "Date" not in list(dic.values()):
             return Response({"message":"Your data must have a datetime column"}, status=status.HTTP_406_NOT_ACCEPTABLE)
         is_load = minio_client.to_json(dic, file_name=file_name)
         if is_load:
@@ -213,7 +213,7 @@ def mapping(request):
     if request.method == "PUT":
         user_id = request.user.id
         file_name = f"{user_id}/mapping.json"
-        dic = request.PUT.get("mapping", "")
+        dic = request.data.get("mapping", "")
         if dic == "":
             return Response({"message":"Missing mapping"}, status=status.HTTP_400_BAD_REQUEST)
         try:

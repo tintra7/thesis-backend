@@ -64,7 +64,7 @@ class MinioClient(Minio):
             print("Bucket not found")
             return pd.DataFrame()
 
-    def to_json(self, data, file_name) -> bool:
+    def to_json(self, data: dict, file_name) -> bool:
         json_data = json.dumps(data, indent=4)
         json_bytes = BytesIO(json_data.encode('utf-8'))
         try:
@@ -100,7 +100,6 @@ class MinioClient(Minio):
         except(Exception):
             print(Exception)
             return {}
-        
 
     def _remove_object(self, user_id) -> bool:
         object_list = self.list_objects(bucket_name=BUCKET_NAME, prefix=f"{user_id}", recursive=True)
@@ -110,6 +109,8 @@ class MinioClient(Minio):
                 self.remove_object(BUCKET_NAME, obj.object_name)
             return True
         return False
+
+        
     
 def try_parse_datetime(data, formats):
     for fmt in formats:
