@@ -16,8 +16,10 @@ from data.utils import (
     descriptive_analysis,
     get_mapping,
     data_preprocessing,
+    train_with_lstm,
     train_with_prophet,
-    train_with_xgboost
+    train_with_xgboost,
+    try_parse_datetime
 )
 
 import numpy as np
@@ -77,7 +79,7 @@ def data(request):
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
             map = get_mapping(list(df.columns))
-            df = data_preprocessing(df.rename(map, axis=1))
+            df = data_preprocessing(df)
             is_uploaded = minio_client.to_csv(df, file_name)
             if not is_uploaded:
                 return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
@@ -193,6 +195,8 @@ def mapping(request):
             return Response({"message": "File not found"}, status=status.HTTP_404_NOT_FOUND)
     if request.method == "POST":
         user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = minio_client.read_csv(file_name)
         file_name = f"{user_id}/mapping.json"
         dic = request.data.get("mapping", "")
 
@@ -206,24 +210,38 @@ def mapping(request):
             return Response({"message":"Your data must have a datetime column"}, status=status.HTTP_406_NOT_ACCEPTABLE)
         is_load = minio_client.to_json(dic, file_name=file_name)
         if is_load:
+            df = df.rename(dic, axis=1)
+            datetime = try_parse_datetime(df['Date'])
+            if not datetime.empty:
+                df['Date'] = datetime
+            minio_client.to_csv(df, file_name=f"{user_id}/file.csv")
             return Response({"message":"Upload successfuly"}, status=status.HTTP_200_OK)
         else:
             return Response({"message":"Update mapping failed"}, status=status.HTTP_400_BAD_REQUEST)
         
     if request.method == "PUT":
         user_id = request.user.id
+        file_name = f"{user_id}/file.csv"
+        df = minio_client.read_csv(file_name)
         file_name = f"{user_id}/mapping.json"
         dic = request.data.get("mapping", "")
         if dic == "":
             return Response({"message":"Missing mapping"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             dic = json.loads(dic)
+            
         except:
             return Response({"message":"JSON format is not compatible"}, status=status.HTTP_406_NOT_ACCEPTABLE)
         if "Date" not in list(dic.values()):
             return Response({"message":"Your data must have a datetime column"}, status=status.HTTP_406_NOT_ACCEPTABLE)
         is_load = minio_client.to_json(dic, file_name=file_name)
+        
         if is_load:
+            df = df.rename(dic, axis=1)
+            datetime = try_parse_datetime(df['Date'])
+            if not datetime.empty:
+                df['Date'] = datetime
+            minio_client.to_csv(df, file_name=f"{user_id}/file.csv")
             return Response({"message":"Update successfuly","mapping": dic}, status=status.HTTP_200_OK)
         else:
             return Response({"message":"Update mapping failed"}, status=status.HTTP_400_BAD_REQUEST)
@@ -243,14 +261,19 @@ def forecast(request):
         target = request.GET.get("metric")
         if not df.empty:
             if "Date" not in df.columns:
-                return Response("Date column not found", status=status.HTTP_404_NOT_FOUND)
+                return Response({"message": "Date column not found"}, status=status.HTTP_404_NOT_FOUND)
             test_size = 0.8
             prophet_model = train_with_prophet(df, test_size, target)
             xgboost_model = train_with_xgboost(df, test_size, target, time_range=time_range)
-            if prophet_model.eval.mae() < xgboost_model.eval.mae():
+            lstm_model = train_with_lstm(df, test_size, target, time_range=time_range)
+            
+            if prophet_model.eval.mae() < min(xgboost_model.eval.mae(), lstm_model.eval.mae()):
                 final_model = prophet_model
-            else:
+            elif xgboost_model.eval.mae() < lstm_model.eval.mae():
                 final_model = xgboost_model
+            else:
+                final_model = lstm_model
+
             response = {
                 "model_name": final_model.name,
                 "mse": final_model.eval.mse(), 

@@ -10,6 +10,11 @@ from abc import ABC, abstractmethod
 from sklearn.model_selection import cross_val_score, RepeatedKFold
 from xgboost import XGBRegressor
 import datetime
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
+from keras.callbacks import EarlyStopping
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class ForecastModel(ABC):
 
@@ -113,6 +118,54 @@ class XGBoostModel(ForecastModel):
         res = pd.DataFrame({"ds": list(self.future_data.index), "yhat":list(y_hat)}).to_dict('records')
         return res
 
+class LSTMModel(ForecastModel):
+
+    def __init__(self, lag_size=30, time_range=30):
+        self.model = None
+        self.lag_size = lag_size
+        self.time_range = time_range
+        self.name = "LSTM"
+        self.call_back = EarlyStopping(monitor='val_loss',patience=20)
+
+    def train(self, test_size, data: pd.DataFrame, target):
+        data = data.groupby("Date")[[target]].sum()
+        supervised_data = self.series_to_supervised(data=data, n_in=self.lag_size, n_out=self.time_range, dropnan=False)
+        self.future_data = supervised_data.tail(self.time_range).iloc[:, :-1]
+        supervised_data = supervised_data.dropna()
+        
+        X = supervised_data.iloc[:, :-1]
+        y = supervised_data.iloc[:, -1]
+        X_train, X_test, y_train, y_test = self.train_test_split(X=X, y=y, test_size=test_size)
+        time_stamp = X_test.index
+        X_train = np.array(X_train)
+        X_test = np.array(X_test)
+        y_train = np.array(y_train)
+        y_test = np.array(y_test)
+        
+        X_train = X_train.reshape((X_train.shape[0], 1, X_train.shape[1]))
+        X_test = X_test.reshape((X_test.shape[0], 1, X_test.shape[1]))
+        self.model = Sequential([
+            LSTM(32, return_sequences= True, input_shape=(X_train.shape[1], X_train.shape[2])),
+            LSTM(32, return_sequences= False),
+            Dense(32, activation="relu"),
+            Dense(1)
+        ])
+
+        self.model.compile(optimizer= 'adam', loss= 'mse' , metrics= "mean_absolute_error")
+        self.model.fit(X_train, y_train, epochs=300, batch_size= 32, validation_split=0.1)
+
+        y_hat = self.model.predict(X_test)
+
+        self.eval = Evaluation(time_stamp, y_hat, y_test)
+
+    def _make_predict(self, time_range=None):
+        self.future_data.index = pd.to_datetime(self.future_data.index)
+        time_stamp = self.future_data.index + datetime.timedelta(days=self.time_range)
+        self.future_data = np.array(self.future_data)
+        self.future_data = self.future_data.reshape((self.future_data.shape[0], 1, self.future_data.shape[1]))
+        y_hat = self.model.predict(self.future_data)
+        res = pd.DataFrame({"ds": list(time_stamp), "yhat":list(y_hat)}).to_dict('records')
+        return res
 
 class Evaluation:
     

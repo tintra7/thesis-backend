@@ -8,7 +8,7 @@ from django.conf import settings
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
-from data.forecast.model import ProphetModel, XGBoostModel
+from data.forecast.model import LSTMModel, ProphetModel, XGBoostModel
 import json
 from openai import RateLimitError, OpenAI
 import time
@@ -118,10 +118,9 @@ class MinioClient(Minio):
                 self.remove_object(BUCKET_NAME, obj.object_name)
             return True
         return False
-
-        
     
-def try_parse_datetime(data, formats):
+def try_parse_datetime(data):
+    formats = ["%d/%m/%Y", ""]
     for fmt in formats:
         try:
             if fmt == "":
@@ -155,8 +154,7 @@ def data_preprocessing(df: pd.DataFrame):
                 print(Exception)
     if "Date" in df.columns:
         # Try parse multiple datetime until success, "" is stand for use default format of pandas
-        formats = ["%d/%m/%Y", ""]
-        datetime = try_parse_datetime(df['Date'], formats=formats)
+        datetime = try_parse_datetime(df['Date'])
         if not datetime.empty:
             df['Date'] = datetime
     df = df.dropna(axis=0)
@@ -300,5 +298,10 @@ def train_with_prophet(data, test_size, target):
 def train_with_xgboost(data, test_size, target, time_range, lag_size=30):
     # Prepare the data for Prophet
     model = XGBoostModel(lag_size, time_range)
+    model.train(test_size, data, target)
+    return model
+
+def train_with_lstm(data, test_size, target, time_range, lag_size=30):
+    model = LSTMModel(lag_size, time_range)
     model.train(test_size, data, target)
     return model

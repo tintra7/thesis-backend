@@ -7,7 +7,7 @@ ruamel.yaml.clib==0.2.7
 drf-spectacular>=0.15.1,<0.16
 minio==7.2.7
 pandas==2.2.2
-numpy==1.26.4
+numpy==1.23.5
 s3fs==2024.6.1
 fsspec==2024.6.1
 openai==1.37.1
@@ -16,3 +16,5 @@ stanio==0.5.1
 prophet==1.1.5
 xgboost==2.1.1
 scikit-learn==1.5.1
+tensorflow==2.12.0
+python-dotenv
