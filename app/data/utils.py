@@ -160,6 +160,19 @@ def data_preprocessing(df: pd.DataFrame):
     df = df.dropna(axis=0)
     return df
 
+score_dict = {'Champions': [515, 524, 525, 533, 534, 535, 542, 543, 544, 545, 551, 552, 553, 554, 555], 'Loyal Customers': [325, 334, 335, 343, 344, 345, 352, 353, 354, 355, 425, 434, 435, 443, 444, 445, 452, 453, 454, 455], 'Potential Loyalist': [413, 414, 415, 422, 423, 424, 431, 432, 433, 441, 442, 451, 513, 514, 522, 523, 531, 532, 541], 'New Customers': [511, 512, 521], 'Promising': [411, 412, 421], 'Need Attention': [311, 312, 313, 321, 322, 331], 'About To Sleep': [314, 315, 323, 324, 332, 333, 341, 342, 351], 'At Risk': [115, 124, 125, 133, 134, 135, 142, 143, 144, 151, 152, 153, 215, 224, 225, 233, 234, 235, 242, 243, 244, 251, 252, 253], "Can't Lose Them": [145, 154, 155, 245, 254, 255], 'Hibernating': [111, 112, 113, 114, 121, 122, 123, 131, 132, 141, 211, 212, 213, 214, 221, 222, 223, 231, 232, 241]}
+def apply_classify(val):
+    if val in score_dict['Champions']: return 'Champions'
+    if val in score_dict['Loyal Customers']: return 'Loyal Customers'
+    if val in score_dict['Potential Loyalist']: return 'Potential Loyalist'
+    if val in score_dict['New Customers']: return 'New Customers'
+    if val in score_dict['Need Attention']: return 'Need Attention'
+    if val in score_dict['About To Sleep']: return 'About To Sleep'
+    if val in score_dict['At Risk']: return 'At Risk'
+    if val in score_dict['Can\'t Lose Them']: return 'Can\'t Lose Them'
+    if val in score_dict['Hibernating']: return 'Hibernating'
+    if val in score_dict['Promising']: return 'Promising'
+    return ""
 def rfm_analysis(df: pd.DataFrame, timestamp: str, monetary: str, customer: str) -> pd.DataFrame:
     df[timestamp] = pd.to_datetime(df[timestamp])
     df_recency = df.groupby(by=customer,
@@ -178,31 +191,21 @@ def rfm_analysis(df: pd.DataFrame, timestamp: str, monetary: str, customer: str)
     rf_df = df_recency.merge(frequency_df, on=customer)
     rfm_df = rf_df.merge(monetary_df, on=customer).drop(
         columns='LastPurchaseDate')
+    rfm_df = rfm_df.round(0)
     rfm_df['R_rank'] = rfm_df['Recency'].rank(ascending=False)
     rfm_df['F_rank'] = rfm_df['Frequency'].rank(ascending=True)
     rfm_df['M_rank'] = rfm_df['Monetary'].rank(ascending=True)
 
     # normalizing the rank of the customers
-    rfm_df['R_rank_norm'] = (rfm_df['R_rank']/rfm_df['R_rank'].max())*100
-    rfm_df['F_rank_norm'] = (rfm_df['F_rank']/rfm_df['F_rank'].max())*100
-    rfm_df['M_rank_norm'] = (rfm_df['F_rank']/rfm_df['M_rank'].max())*100
+    rfm_df['R_Score'] = np.ceil((rfm_df['R_rank']/rfm_df['R_rank'].max())*5).astype(int)
+    rfm_df['F_Score'] = np.ceil((rfm_df['F_rank']/rfm_df['F_rank'].max())*5).astype(int)
+    rfm_df['M_Score'] = np.ceil((rfm_df['M_rank']/rfm_df['M_rank'].max())*5).astype(int)
     rfm_df.drop(columns=['R_rank', 'F_rank', 'M_rank'], inplace=True)
 
-    rfm_df['RFM_Score'] = 0.15*rfm_df['R_rank_norm']+0.28 * \
-        rfm_df['F_rank_norm']+0.57*rfm_df['M_rank_norm']
-    rfm_df['RFM_Score'] *= 0.05
-    rfm_df = rfm_df.round(2)
+    rfm_df['RFM_Score'] = 100*rfm_df['R_Score'] + 10 *rfm_df['F_Score']+ rfm_df['M_Score']
 
-    rfm_df["Customer_segment"] = np.where(rfm_df['RFM_Score'] >
-                                        4.5, "Top Customers",
-                                        (np.where(
-                                            rfm_df['RFM_Score'] > 4,
-                                            "High value Customer",
-                                            (np.where(
-    rfm_df['RFM_Score'] > 3,
-                            "Medium Value Customer",
-                            np.where(rfm_df['RFM_Score'] > 1.6,
-                            'Low Value Customers', 'Lost Customers'))))))
+    rfm_df["Customer_segment"] = rfm_df['RFM_Score'].apply(apply_classify)
+    rfm_df = rfm_df.sort_values(['R_Score', 'F_Score', 'M_Score'], ascending = [False, False, False])
 
     return rfm_df
 
@@ -288,6 +291,17 @@ def get_mapping(user_columns: list[str]):
             'invoice_date': 'Date',
             'shopping_mall': 'Store Location'
         }
+    # return {
+    #         'Invoice':'Transaction ID',
+    #         'StockCode': 'Product ID',
+    #         'Description': 'Description',
+    #         'Quantity': 'Quantity',
+    #         'InvoiceDate': 'Date',
+    #         'Price': 'Unit Price',
+    #         'Customer ID': 'Customer ID',
+    #         'Country': 'Store Location',
+    #         'Total Price': 'Total Price',
+    # }
 
 def train_with_prophet(data, test_size, target):
     # Prepare the data for Prophet

@@ -58,7 +58,7 @@ def data(request):
             # result_page = paginator.paginate_queryset(df.to_dict('records'), request)
             # response_data = result_page
             # return paginator.get_paginated_response(response_data)
-            return Response({"data": df.to_dict('records')}, status=status.HTTP_200_OK)
+            return Response({"data": df.head(5000).to_dict('records')}, status=status.HTTP_200_OK)
         else:
             return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     if request.method == "DELETE":
@@ -100,17 +100,23 @@ def get_columns(request):
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
         if not df.empty:
-            metric_columns = []
-            nominal_columns = []
-            for i in df.columns:
-                if is_numeric_dtype(df[i]):
-                    metric_columns += [i]
-                else:
-                    nominal_columns += [i]
-            response = {"metric": metric_columns, "nominal": nominal_columns}
+            columns = [i for i in df.columns]
+            response = {"columns": columns}
             return Response(response, status=status.HTTP_200_OK)
         else:
             return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
+        # if not df.empty:
+        #     metric_columns = []
+        #     nominal_columns = []
+        #     for i in df.columns:
+        #         if is_numeric_dtype(df[i]):
+        #             metric_columns += [i]
+        #         else:
+        #             nominal_columns += [i]
+        #     response = {"metric": metric_columns, "nominal": nominal_columns}
+        #     return Response(response, status=status.HTTP_200_OK)
+        # else:
+        #     return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     else:
         return Response({"message":"Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
@@ -145,7 +151,7 @@ def rfm(request):
             df = df.rename(mapper, axis=1)
             timestamp = "Date"
             monetary = "Total Price"
-            customer = "Custormer Name" if "Custormer Name" in df.columns else "Custormer ID"
+            customer = "Customer Name" if "Customer Name" in df.columns else "Customer ID"
             if timestamp not in df.columns:
                 return Response({"message": "Missing datetime colunm"}, status=status.HTTP_400_BAD_REQUEST)
             if monetary not in df.columns:
@@ -154,8 +160,9 @@ def rfm(request):
                 return Response({"message": "Missing customer colunm"}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 rfm_df = rfm_analysis(df, timestamp, monetary, customer)
-                response_data = rfm_df.to_dict('records')
-                return Response({"data": response_data}, status=status.HTTP_200_OK)
+                response_data = rfm_df.head(100).to_dict('records')
+                counts = rfm_df['Customer_segment'].value_counts().to_dict()
+                return Response({"data": response_data, 'value_counts': counts, 'total': len(rfm_df)}, status=status.HTTP_200_OK)
             except(Exception):
                 return Response({"message": "Calculate RFM failed"}, status=status.HTTP_400_BAD_REQUEST)
         else:
