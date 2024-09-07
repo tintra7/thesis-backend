@@ -79,7 +79,7 @@ def data(request):
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
             map = get_mapping(list(df.columns))
-            df = data_preprocessing(df)
+            
             is_uploaded = minio_client.to_csv(df, file_name)
             if not is_uploaded:
                 return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
@@ -218,6 +218,7 @@ def mapping(request):
         is_load = minio_client.to_json(dic, file_name=file_name)
         if is_load:
             df = df.rename(dic, axis=1)
+            df = data_preprocessing(df)
             datetime = try_parse_datetime(df['Date'])
             if not datetime.empty:
                 df['Date'] = datetime

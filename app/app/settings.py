@@ -86,14 +86,15 @@ WSGI_APPLICATION = 'app.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-
+DB_HOST="db"
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'HOST': os.environ.get("DB_HOST"),
-        'NAME': os.environ.get("DB_NAME"),
-        'USER': os.environ.get("DB_USER"),
-        'PASSWORD': os.environ.get("DB_PASS"),
+        'HOST': 'localhost',  # Docker exposes Postgres to localhost
+        'PORT': '5432',
+        'NAME': os.environ.get('DB_NAME', 'devdb'),
+        'USER': os.environ.get('DB_USER', 'devuser'),
+        'PASSWORD': os.environ.get('DB_PASS', '1234'),
     }
 }
 
@@ -161,7 +162,7 @@ MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
 MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME")
 MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT")
-
+print(MINIO_ACCESS_KEY) 
 MAX_PAGE_SIZE = 200
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
