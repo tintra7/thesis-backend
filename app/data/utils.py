@@ -277,17 +277,16 @@ def get_mapping(user_columns: list[str]):
     # return default_mapping
 
     return {
-            'invoice_no': 'Transaction ID',
-            'customer_id': 'Customer ID',
-            'gender': "Customer Gender",
-            'age': "Customer Age",
-            'category': 'Category',
-            'quantity': 'Quantity',
-            'price': 'Unit Price',
-            'payment_method': 'Payment Method',
-            'invoice_date': 'Date',
-            'shopping_mall': 'Store Location'
-        }
+        "Invoice": "Transaction ID",
+        "StockCode": "Product ID",
+        "Description": "Description",
+        "Quantity": "Quantity",
+        "InvoiceDate": "Date",
+        "Price": "Unit Price",
+        "Customer ID": "Customer ID",
+        "Country": "Store Location",
+        "Total Price": "Total Price"
+    }
 
 def train_with_prophet(data, test_size, target):
     # Prepare the data for Prophet
