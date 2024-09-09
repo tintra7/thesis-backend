@@ -138,6 +138,9 @@ def remove_symbol(s):
     return result
 
 def data_preprocessing(df: pd.DataFrame):
+    for column in df.columns:
+        if column.startswith("Unnamed"):
+            df = df.drop(column, axis=1)
     if "Unit Price" in df.columns and not is_numeric_dtype(df['Unit Price']):
         df['Unit Price'] = df['Unit Price'].apply(remove_symbol)
         df['Unit Price'] = pd.to_numeric(df['Unit Price'])
@@ -157,6 +160,9 @@ def data_preprocessing(df: pd.DataFrame):
         datetime = try_parse_datetime(df['Date'])
         if not datetime.empty:
             df['Date'] = datetime
+    df['Day'] = df['Date'].dt.day
+    df['Month'] = df['Date'].dt.month
+    df['Year'] = df['Date'].dt.year
     df = df.dropna(axis=0)
     return df
 
@@ -307,3 +313,8 @@ def train_with_lstm(data, test_size, target, time_range, lag_size=30):
     model = LSTMModel(lag_size, time_range)
     model.train(test_size, data, target)
     return model
+
+def filter_data(data, filters):
+    for key, value in filters.items():
+        data = data[data[key] == value]
+    return data
