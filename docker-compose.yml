@@ -21,9 +21,7 @@ services:
       MINIO_ACCESS_KEY: test
       MINIO_SECRET_KEY: test12334567
     command: server /data --console-address ":9001"
-
-
-
+  
 volumes:
   dev-db-data:
   minio-data:

@@ -12,6 +12,7 @@ from data.forecast.model import LSTMModel, ProphetModel, XGBoostModel
 import json
 from openai import RateLimitError, OpenAI
 import time
+from sqlalchemy import create_engine, text
 
 
 MINIO_ACCESS_KEY = settings.MINIO_ACCESS_KEY
@@ -318,3 +319,20 @@ def filter_data(data, filters):
     for key, value in filters.items():
         data = data[data[key] == value]
     return data
+
+def create_sql_engine(user_id):
+    directory = 'database'
+    file_name = f'{user_id}.db'
+    file_path = os.path.join(directory, file_name)
+
+    # Create the directory if it does not exist
+    os.makedirs(directory, exist_ok=True)
+
+    # Create the SQLAlchemy engine with the path to the SQLite database file
+    engine = create_engine(f"sqlite:///{file_path}")
+    drop_table_query = "DROP TABLE IF EXISTS data"
+
+    # Execute the drop table query using the engine
+    with engine.connect() as connection:
+        connection.execute(text(drop_table_query))
+    return engine

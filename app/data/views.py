@@ -20,7 +20,8 @@ from data.utils import (
     train_with_prophet,
     train_with_xgboost,
     try_parse_datetime,
-    filter_data
+    filter_data,
+    create_sql_engine,
 )
 
 import numpy as np
@@ -75,15 +76,20 @@ def data(request):
         delimiter = request.data.get("delimiter")
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
-        
+        engine = create_sql_engine(user_id)
         if file is not None:
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
-            map = get_mapping(list(df.columns))
             
+            map = get_mapping(list(df.columns))
+            try:
+                df.to_sql("data", engine, index=False)
+            except:
+                return Response({"message" : "Create sqlite engine fail"}, status=status.HTTP_400_BAD_REQUEST)
             is_uploaded = minio_client.to_csv(df, file_name)
             if not is_uploaded:
                 return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
+            
             response = {"message": "File uploaded successfully",
                         "mapping": map}
             return Response(response, status=status.HTTP_200_OK)
