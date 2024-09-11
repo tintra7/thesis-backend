@@ -274,6 +274,16 @@ def forecast(request):
         df = minio_client.read_csv(file_name)
         time_range = int(request.GET.get('time'))
         target = request.GET.get("metric")
+        filters = request.GET.get('filter', "")
+        if filters != "":
+            try:
+                filters = json.loads(filters)
+                try:
+                    df = filter_data(df, filters)
+                except:
+                    return Response({"message": "Apply filter failed"}, status=status.HTTP_400_BAD_REQUEST)
+            except:
+                return Response({"message": "Filter format not excepted"}, status=status.HTTP_400_BAD_REQUEST)
         if not df.empty:
             if "Date" not in df.columns:
                 return Response({"message": "Date column not found"}, status=status.HTTP_404_NOT_FOUND)

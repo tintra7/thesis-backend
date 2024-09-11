@@ -139,6 +139,9 @@ def remove_symbol(s):
     return result
 
 def data_preprocessing(df: pd.DataFrame):
+    for column in df.columns:
+        if column.startswith("Unnamed"):
+            df = df.drop(column, axis=1)
     if "Unit Price" in df.columns and not is_numeric_dtype(df['Unit Price']):
         df['Unit Price'] = df['Unit Price'].apply(remove_symbol)
         df['Unit Price'] = pd.to_numeric(df['Unit Price'])
@@ -158,6 +161,9 @@ def data_preprocessing(df: pd.DataFrame):
         datetime = try_parse_datetime(df['Date'])
         if not datetime.empty:
             df['Date'] = datetime
+    df['Day'] = df['Date'].dt.day
+    df['Month'] = df['Date'].dt.month
+    df['Year'] = df['Date'].dt.year
     df = df.dropna(axis=0)
     return df
 
