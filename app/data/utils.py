@@ -139,9 +139,6 @@ def remove_symbol(s):
     return result
 
 def data_preprocessing(df: pd.DataFrame):
-    for column in df.columns:
-        if column.startswith("Unnamed"):
-            df = df.drop(column, axis=1)
     if "Unit Price" in df.columns and not is_numeric_dtype(df['Unit Price']):
         df['Unit Price'] = df['Unit Price'].apply(remove_symbol)
         df['Unit Price'] = pd.to_numeric(df['Unit Price'])
@@ -161,9 +158,6 @@ def data_preprocessing(df: pd.DataFrame):
         datetime = try_parse_datetime(df['Date'])
         if not datetime.empty:
             df['Date'] = datetime
-    df['Day'] = df['Date'].dt.day
-    df['Month'] = df['Date'].dt.month
-    df['Year'] = df['Date'].dt.year
     df = df.dropna(axis=0)
     return df
 
@@ -287,16 +281,28 @@ def get_mapping(user_columns: list[str]):
     # return default_mapping
 
     return {
-        "Invoice": "Transaction ID",
-        "StockCode": "Product ID",
-        "Description": "Description",
-        "Quantity": "Quantity",
-        "InvoiceDate": "Date",
-        "Price": "Unit Price",
-        "Customer ID": "Customer ID",
-        "Country": "Store Location",
-        "Total Price": "Total Price"
-    }
+            'invoice_no': 'Transaction ID',
+            'customer_id': 'Customer ID',
+            'gender': "Customer Gender",
+            'age': "Customer Age",
+            'category': 'Category',
+            'quantity': 'Quantity',
+            'price': 'Unit Price',
+            'payment_method': 'Payment Method',
+            'invoice_date': 'Date',
+            'shopping_mall': 'Store Location'
+        }
+    # return {
+    #         'Invoice':'Transaction ID',
+    #         'StockCode': 'Product ID',
+    #         'Description': 'Description',
+    #         'Quantity': 'Quantity',
+    #         'InvoiceDate': 'Date',
+    #         'Price': 'Unit Price',
+    #         'Customer ID': 'Customer ID',
+    #         'Country': 'Store Location',
+    #         'Total Price': 'Total Price',
+    # }
 
 def train_with_prophet(data, test_size, target):
     # Prepare the data for Prophet
