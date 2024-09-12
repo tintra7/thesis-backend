@@ -67,7 +67,10 @@ class ProphetModel(ForecastModel):
         self.name = "Prophet"
 
     def train(self, test_size: float, data: pd.DataFrame, target: str):
-        data = data.groupby("Date")[target].sum().reset_index()
+        data = data.groupby(['Day', 'Month', 'Year'])[target].sum().reset_index()
+        data['ds'] = pd.to_datetime(data[['Year', 'Month', 'Day']])
+        # Drop the original Day, Month, Year columns (optional)
+        data.drop(columns=['Day', 'Month', 'Year'], inplace=True)
         data.rename({'Date': 'ds', target: 'y'}, axis=1, inplace=True)
         
         split_index = int((1 - test_size) * len(data))
@@ -96,7 +99,12 @@ class XGBoostModel(ForecastModel):
         self.name = "XGBoost"
 
     def train(self, test_size, data: pd.DataFrame, target):
-        data = data.groupby("Date")[[target]].sum()
+        # data = data.groupby("Date")[[target]].sum()
+        data = data.groupby(['Day', 'Month', 'Year'])[[target]].sum().reset_index()
+        data['ds'] = pd.to_datetime(data[['Year', 'Month', 'Day']])
+        # Drop the original Day, Month, Year columns (optional)
+        data.drop(columns=['Day', 'Month', 'Year'], inplace=True)
+        data = data.set_index('ds')
         supervised_data = self.series_to_supervised(data=data, n_in=self.lag_size, n_out=self.time_range, dropnan=False)
         self.future_data = supervised_data.tail(self.time_range).iloc[:, :-1]
         supervised_data = supervised_data.dropna()
@@ -128,7 +136,13 @@ class LSTMModel(ForecastModel):
         self.call_back = EarlyStopping(monitor='val_loss',patience=20)
 
     def train(self, test_size, data: pd.DataFrame, target):
-        data = data.groupby("Date")[[target]].sum()
+        # data = data.groupby("Date")[[target]].sum()
+        data = data.groupby(['Day', 'Month', 'Year'])[[target]].sum().reset_index()
+        data['ds'] = pd.to_datetime(data[['Year', 'Month', 'Day']])
+        data = data.sort_values(by='ds')
+        # Drop the original Day, Month, Year columns (optional)
+        data.drop(columns=['Day', 'Month', 'Year'], inplace=True)
+        data = data.set_index('ds')
         supervised_data = self.series_to_supervised(data=data, n_in=self.lag_size, n_out=self.time_range, dropnan=False)
         self.future_data = supervised_data.tail(self.time_range).iloc[:, :-1]
         supervised_data = supervised_data.dropna()
