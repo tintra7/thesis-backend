@@ -72,7 +72,7 @@ class ProphetModel(ForecastModel):
         # Drop the original Day, Month, Year columns (optional)
         data.drop(columns=['Day', 'Month', 'Year'], inplace=True)
         data.rename({'Date': 'ds', target: 'y'}, axis=1, inplace=True)
-        
+        data = data.sort_values(by='ds')
         split_index = int((1 - test_size) * len(data))
         train_set = data.iloc[:split_index, :]
         test_set = data.iloc[split_index:, :]
@@ -104,6 +104,7 @@ class XGBoostModel(ForecastModel):
         data['ds'] = pd.to_datetime(data[['Year', 'Month', 'Day']])
         # Drop the original Day, Month, Year columns (optional)
         data.drop(columns=['Day', 'Month', 'Year'], inplace=True)
+        data = data.sort_values(by='ds')
         data = data.set_index('ds')
         supervised_data = self.series_to_supervised(data=data, n_in=self.lag_size, n_out=self.time_range, dropnan=False)
         self.future_data = supervised_data.tail(self.time_range).iloc[:, :-1]

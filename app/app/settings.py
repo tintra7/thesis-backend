@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     'data',
     'chart',
     'filter',
-
+    'chat',
 ]
 
 MIDDLEWARE = [

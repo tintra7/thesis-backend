@@ -4,7 +4,7 @@ from minio import Minio
 from minio.error import S3Error
 
 from django.conf import settings
-
+import os
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -333,7 +333,7 @@ def filter_data(data, filters):
     return data
 
 def create_sql_engine(user_id):
-    directory = 'database'
+    directory = 'app/database'
     file_name = f'{user_id}.db'
     file_path = os.path.join(directory, file_name)
 
