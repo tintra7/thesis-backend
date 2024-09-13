@@ -293,9 +293,9 @@ def forecast(request):
             xgboost_model = train_with_xgboost(df, test_size, target, time_range=time_range)
             lstm_model = train_with_lstm(df, test_size, target, time_range=time_range)
             
-            if prophet_model.eval.mae() < min(xgboost_model.eval.mae(), lstm_model.eval.mae()):
+            if prophet_model.eval.mse() < min(xgboost_model.eval.mse(), lstm_model.eval.mse()):
                 final_model = prophet_model
-            elif xgboost_model.eval.mae() < lstm_model.eval.mae():
+            elif xgboost_model.eval.mse() < lstm_model.eval.mse():
                 final_model = xgboost_model
             else:
                 final_model = lstm_model

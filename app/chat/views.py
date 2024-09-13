@@ -11,6 +11,7 @@ from langchain.memory import ConversationBufferMemory
 from .serializers import ChatMessageSerializer, ConversationSerializer
 from chat.utils import *
 from django.http import JsonResponse    
+from chat.utils import create_response
 
 
 @api_view(['POST', 'GET'])
@@ -48,21 +49,15 @@ def chat(request):
             # Generate a default title if not provided
             title = generate_title()
             store_title(title, user)
-        reloaded_chain = ConversationChain(
-            llm=llm,
-            memory=ConversationBufferMemory(
-                chat_memory=retrieved_chat_history),
-            verbose=True
-        )
 
-        response = reloaded_chain.predict(input=prompt)
+        response = create_response(user, retrieved_chat_history, prompt)
 
         conversation_title = Conversation.objects.get(title=title, user=user)
         conversation_id = getattr(conversation_title, 'id')
         store_message(prompt, response, conversation_id)
 
         return JsonResponse({
-            'ai_responce': response,
+            'ai_response': response,
             'title':title
         }, status=201)
 

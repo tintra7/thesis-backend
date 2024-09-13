@@ -16,7 +16,9 @@ from langchain_community.agent_toolkits import create_sql_agent
 load_dotenv
 
 memory = ConversationBufferMemory()
-llm = ChatOpenAI(model="gpt-40-mini", temperature=0)
+
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
 system = """You are an agent designed to interact with a SQL database.
 Given an input question, create a syntactically correct {dialect} query to run, then look at the results of the query and return the answer.
 Unless the user specifies a specific number of examples they wish to obtain, always limit your query to at most {top_k} results.
@@ -95,11 +97,11 @@ def create_sql_engine(user):
     directory = 'app/database'
     file_name = f'{user.id}.db'
     file_path = os.path.join(directory, file_name)
+    print(file_path)
     engine = create_engine(f"sqlite:///{file_path}")
     return engine
 
-def create_llm_agent(engine):
-    
+def create_llm_agent(engine, retrieved_chat_history):
     db = SQLDatabase(engine)
     prompt = ChatPromptTemplate.from_messages(
     [("system", system), ("human", "{input}"), MessagesPlaceholder("agent_scratchpad")]
@@ -110,7 +112,16 @@ def create_llm_agent(engine):
         prompt=prompt,
         agent_type="openai-tools",
         verbose=True,
+        memory=ConversationBufferMemory(
+                chat_memory=retrieved_chat_history)
     )
     return agent
 
-def create_response(user_id, prompt):
+def create_response(user, retrieved_chat_history: ChatMessageHistory, prompt: str):
+    engine = create_sql_engine(user)
+    agent = create_llm_agent(engine, retrieved_chat_history)
+    response = agent.invoke(prompt)
+    print(response.get('output'))
+    return response.get('output')
+    
+
