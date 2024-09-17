@@ -88,7 +88,7 @@ class ProphetModel(ForecastModel):
         future = self.model.make_future_dataframe(periods=time_range)
         future = self.model.predict(future.tail(time_range))
         
-        return future[['ds', 'yhat']].to_dict('records')
+        return future[['ds', 'yhat']]
     
 class XGBoostModel(ForecastModel):
 
@@ -124,7 +124,7 @@ class XGBoostModel(ForecastModel):
         y_hat = self.model.predict(self.future_data)
         self.future_data.index = pd.to_datetime(self.future_data.index)
         self.future_data.index = self.future_data.index + datetime.timedelta(days=self.time_range)
-        res = pd.DataFrame({"ds": list(self.future_data.index), "yhat":list(y_hat)}).to_dict('records')
+        res = pd.DataFrame({"ds": list(self.future_data.index), "yhat":list(y_hat.flatten())})
         return res
 
 class LSTMModel(ForecastModel):
@@ -179,7 +179,7 @@ class LSTMModel(ForecastModel):
         self.future_data = np.array(self.future_data)
         self.future_data = self.future_data.reshape((self.future_data.shape[0], 1, self.future_data.shape[1]))
         y_hat = self.model.predict(self.future_data)
-        res = pd.DataFrame({"ds": list(time_stamp), "yhat":list(y_hat)}).to_dict('records')
+        res = pd.DataFrame({"ds": list(time_stamp), "yhat":list(y_hat.flatten())})
         return res
 
 class Evaluation:
@@ -210,7 +210,7 @@ class Evaluation:
         plt.show()
 
     def get_eval_df(self) -> pd.DataFrame:
-        return pd.DataFrame({'ds': list(self.ds), 'y_hat': list(self.y_hat), "y_truth": list(self.y_truth)})
+        return pd.DataFrame({'ds': list(self.ds), 'y_hat': list(self.y_hat.flatten()), "y_truth": list(self.y_truth)})
 
     def show_evaluation(self) -> None:
         print("Mean Squared Error:", self.mse())
