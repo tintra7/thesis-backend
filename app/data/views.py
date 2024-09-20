@@ -163,7 +163,7 @@ def rfm(request):
                 return Response({"message": "Missing customer colunm"}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 rfm_df = rfm_analysis(df, timestamp, monetary, customer)
-                response_data = rfm_df.head(100).to_dict('records')
+                response_data = rfm_df.to_dict('records')
                 counts = rfm_df['Customer_segment'].value_counts().to_dict()
                 return Response({"data": response_data, 'value_counts': counts, 'total': len(rfm_df)}, status=status.HTTP_200_OK)
             except(Exception):
