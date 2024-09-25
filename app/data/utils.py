@@ -329,6 +329,8 @@ def train_with_lstm(data, test_size, target, time_range, lag_size=30):
 
 def filter_data(data, filters):
     for key, value in filters.items():
+        if is_numeric_dtype(date[key]):
+            value = int(value)
         data = data[data[key] == value]
     return data
 

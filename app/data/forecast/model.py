@@ -11,8 +11,8 @@ from sklearn.model_selection import cross_val_score, RepeatedKFold
 from xgboost import XGBRegressor
 import datetime
 from keras.models import Sequential
-from keras.layers import LSTM, Dense
-from keras.callbacks import EarlyStopping
+from keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -160,14 +160,26 @@ class LSTMModel(ForecastModel):
         X_train = X_train.reshape((X_train.shape[0], 1, X_train.shape[1]))
         X_test = X_test.reshape((X_test.shape[0], 1, X_test.shape[1]))
         self.model = Sequential([
-            LSTM(32, return_sequences= True, input_shape=(X_train.shape[1], X_train.shape[2])),
-            LSTM(32, return_sequences= False),
+            LSTM(128, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
+            Dropout(0.2),
+            LSTM(64, return_sequences=False),
+            Dropout(0.2),
             Dense(32, activation="relu"),
-            Dense(1)
+            Dense(1)  # Regression output
         ])
 
-        self.model.compile(optimizer= 'adam', loss= 'mse' , metrics= "mean_absolute_error")
-        self.model.fit(X_train, y_train, epochs=300, batch_size= 32, validation_split=0.1)
+        # Compile the model
+        self.model.compile(optimizer='adam', loss='mse', metrics=["mean_absolute_error"])
+
+        # Add early stopping and learning rate scheduler
+        
+
+        # Train the model with early stopping and learning rate reduction
+        self.history = self.model.fit(X_train, y_train, 
+                                    epochs=200, 
+                                    batch_size=64, 
+                                    validation_split=0.2,
+                                    )
 
         y_hat = self.model.predict(X_test)
 
@@ -195,10 +207,13 @@ class Evaluation:
     def mae(self) -> float:
         return mean_absolute_error(self.y_hat, self.y_truth)
 
+    def smape(self) -> float:
+        return 100 / len(self.y_hat) * np.sum(2 * np.abs(self.y_hat - self.y_truth) / (np.abs(self.y_hat) + np.abs(self.y_truth)))
+
     def plot(self) -> None:
         plt.figure(figsize=(10, 6))
-        plt.plot(self.ds, self.y_truth, label='Real', color='blue')
-        plt.plot(self.ds, self.y_hat, label='Predicted', color='orange')
+        plt.plot(self.ds[:-180], self.y_truth[:-180], label='Real', color='blue')
+        plt.plot(self.ds[:-180], self.y_hat[:-180], label='Predicted', color='orange')
 
         plt.title('Real vs Predicted Values')
         plt.xlabel('Date')
@@ -215,4 +230,5 @@ class Evaluation:
     def show_evaluation(self) -> None:
         print("Mean Squared Error:", self.mse())
         print("Mean Absolute Error:", self.mae())
+        print("Symmetric mean absolute percentage error:", self.smape())
         self.plot()

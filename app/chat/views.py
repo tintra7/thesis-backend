@@ -54,7 +54,7 @@ def chat(request):
             store_title(title, user)
 
         response = create_response(user, retrieved_chat_history, prompt)
-
+        print(retrieved_chat_history)
         conversation_title = Conversation.objects.get(title=title, user=user)
         conversation_id = getattr(conversation_title, 'id')
         store_message(prompt, response, conversation_id)
