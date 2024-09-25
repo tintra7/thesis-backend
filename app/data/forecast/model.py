@@ -210,7 +210,7 @@ class Evaluation:
         plt.show()
 
     def get_eval_df(self) -> pd.DataFrame:
-        return pd.DataFrame({'ds': list(self.ds), 'y_hat': list(self.y_hat.flatten()), "y_truth": list(self.y_truth)})
+        return pd.DataFrame({'ds': list(self.ds), 'y_hat': list( np.array(self.y_hat).flatten()), "y_truth": list(self.y_truth)})
 
     def show_evaluation(self) -> None:
         print("Mean Squared Error:", self.mse())
