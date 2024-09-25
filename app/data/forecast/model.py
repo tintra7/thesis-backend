@@ -160,7 +160,7 @@ class LSTMModel(ForecastModel):
         X_train = X_train.reshape((X_train.shape[0], 1, X_train.shape[1]))
         X_test = X_test.reshape((X_test.shape[0], 1, X_test.shape[1]))
         self.model = Sequential([
-            LSTM(128, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
+            LSTM(64, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
             Dropout(0.2),
             LSTM(64, return_sequences=False),
             Dropout(0.2),
