@@ -214,7 +214,6 @@ def mapping(request):
         if dic == "":
             return Response({"message":"Missing mapping"}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            print(dic)
             dic = json.loads(dic)
         except:
             return Response({"message":"JSON format is not compatible"}, status=status.HTTP_406_NOT_ACCEPTABLE)
