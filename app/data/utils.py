@@ -146,7 +146,7 @@ def data_preprocessing(df: pd.DataFrame):
         df['Unit Price'] = df['Unit Price'].apply(remove_symbol)
         df['Unit Price'] = pd.to_numeric(df['Unit Price'])
 
-    if "Total Price" in df.columns and not is_numeric_dtype(df['Unit Price']):
+    if "Total Price" in df.columns and not is_numeric_dtype(df['Total Price']):
         df['Total Price'] = df['Total Price'].apply(remove_symbol)
         df['Total Price'] = pd.to_numeric(df['Total Price'])   
 
