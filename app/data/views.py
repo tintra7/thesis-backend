@@ -61,7 +61,7 @@ def data(request):
             # response_data = result_page
             # return paginator.get_paginated_response(response_data)
             df = df.dropna(axis=0)
-            return Response({"data": df.head(5000).to_dict('records')}, status=status.HTTP_200_OK)
+            return Response({"data": df.to_dict('records')}, status=status.HTTP_200_OK)
         else:
             return Response({"message":"File not found"}, status=status.HTTP_404_NOT_FOUND)
     if request.method == "DELETE":

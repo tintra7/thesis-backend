@@ -42,6 +42,11 @@ def get_value(request):
         user_id = request.user.id
         file_name = f"{user_id}/file.csv"
         df = minio_client.read_csv(file_name)
+        filter = request.GET.get("filter", "[]")
+        filter = json.loads(filter)
+        if not validate_filter(filter):
+            return Response({"message":"Filter is not valid"}, status=status.HTTP_400_BAD_REQUEST)
+        df = get_filter(df, filter)
         function = request.GET.get("function", "")
         column = request.GET.get("column", "")
         if function == "":
