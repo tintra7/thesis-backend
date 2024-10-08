@@ -120,6 +120,16 @@ class MinioClient(Minio):
             return True
         return False
     
+    def _exist_file(self, user_id, file_name) -> bool:
+        object_list = self.list_objects(bucket_name=BUCKET_NAME, prefix=f"{user_id}", recursive=True)
+        object_list = list(object_list)
+        if len(object_list) > 0:
+            for obj in object_list:
+                print(obj.object_name, f"{user_id}/{file_name}")
+                if obj.object_name == f"{user_id}/{file_name}":
+                    return True
+        return False
+    
 def try_parse_datetime(data):
     formats = ["%d/%m/%Y", ""]
     for fmt in formats:

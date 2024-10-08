@@ -46,6 +46,7 @@ def chat(request):
             title = provided_title
             retrieved_chat_history = retrieve_conversation(
                 provided_title, user)
+            print(retrieved_chat_history)
         else:
             memory.clear()
             retrieved_chat_history = ChatMessageHistory(messages=[])

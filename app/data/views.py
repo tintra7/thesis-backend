@@ -9,7 +9,8 @@ from rest_framework.pagination import PageNumberPagination
 from io import StringIO
 from prophet import Prophet
 import json
-
+import time
+import os
 from data.utils import (
     MinioClient,
     rfm_analysis,
@@ -67,8 +68,14 @@ def data(request):
     if request.method == "DELETE":
         user_id = request.user.id
         remove_status = minio_client._remove_object(user_id=user_id)
+        # Delete sqllite file
+        if os.path.exists(f"app/database/{user_id}.db"):
+            os.remove(f"app/database/{user_id}.db")
+        else:
+            print("The file does not exist")
         if remove_status:
             return Response(f"Clear all file of {user_id}", status=status.HTTP_200_OK)
+        
         else:
             return Response("Nothing to delete", status=status.HTTP_200_OK)
     if request.method == "POST":
@@ -76,14 +83,28 @@ def data(request):
         file_type = request.data.get("type")
         delimiter = request.data.get("delimiter")
         user_id = request.user.id
+        current_time = int(time.time())
         file_name = f"{user_id}/file.csv"
-        
+        current_file_name =f"{user_id}/file_{current_time}.csv"
         if file is not None:
             value_as_bytes = file.read()
             df = pd.read_csv(StringIO(value_as_bytes.decode('utf-8')))
-            
-            map = get_mapping(list(df.columns))
-            is_uploaded = minio_client.to_csv(df, file_name)
+            if not minio_client._exist_file(user_id, "mapping.json"):
+                map = get_mapping(list(df.columns))
+            else:
+                map = minio_client.read_json(f"{user_id}/mapping.json")
+                df = df.rename(map, axis=1)
+            # if exist target file, concat newfile to target file
+            if minio_client._exist_file(user_id, "file.csv"):
+                target_df = minio_client.read_csv(f"{user_id}/file.csv")
+                target_df = pd.concat([target_df, df]).drop_duplicates()
+                print(target_df.head())
+                is_uploaded = minio_client.to_csv(target_df, file_name)
+            else:
+                is_uploaded = minio_client.to_csv(df, file_name)
+            if not is_uploaded:
+                return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)  
+            is_uploaded = minio_client.to_csv(df, current_file_name)
             if not is_uploaded:
                 return Response({"message" : "Uploadfile failed"}, status=status.HTTP_400_BAD_REQUEST)
             
